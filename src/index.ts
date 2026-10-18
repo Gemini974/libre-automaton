@@ -35,6 +35,11 @@ import { createLogger, setGlobalLogLevel, StructuredLogger } from "./observabili
 import { prettySink } from "./observability/pretty-sink.js";
 import { randomUUID } from "crypto";
 import { keccak256, toHex } from "viem";
+// TODO(Task 8): src/index.ts has no HTTP server yet. Wire POST /webhook/payment to
+// handlePaymentWebhook(body, revenueTracker, process.env.KOFI_WEBHOOK_SECRET, <provided secret>)
+// once RevenueTracker (Task 3) is merged and a server exists.
+import { handlePaymentWebhook } from "./webhook/payment.js";
+void handlePaymentWebhook;
 
 const logger = createLogger("main");
 const VERSION = "0.2.1";
