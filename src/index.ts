@@ -36,11 +36,9 @@ import { createLogger, setGlobalLogLevel, StructuredLogger } from "./observabili
 import { prettySink } from "./observability/pretty-sink.js";
 import { randomUUID } from "crypto";
 import { keccak256, toHex } from "viem";
-// TODO(Task 8): src/index.ts has no HTTP server yet. Wire POST /webhook/payment to
-// handlePaymentWebhook(body, revenueTracker, process.env.KOFI_WEBHOOK_SECRET, <provided secret>)
-// once RevenueTracker (Task 3) is merged and a server exists.
+import http from "http";
 import { handlePaymentWebhook } from "./webhook/payment.js";
-void handlePaymentWebhook;
+import { RevenueTracker } from "./survival/revenue-tracker.js";
 
 const logger = createLogger("main");
 const VERSION = "0.2.1";
@@ -72,9 +70,10 @@ Usage:
   automaton --help         Show this help
 
 Environment:
-  CONWAY_API_URL           Conway API URL (default: https://api.conway.tech)
-  CONWAY_API_KEY           Conway API key (overrides config)
-  OLLAMA_BASE_URL          Ollama base URL (overrides config, e.g. http://localhost:11434)
+  OLLAMA_API_KEY           Ollama Cloud API key (required for api.ollama.com)
+  OLLAMA_BASE_URL          Ollama base URL (default: https://api.ollama.com)
+  PORT                     HTTP server port for webhooks (default: 3000)
+  KOFI_WEBHOOK_SECRET      Ko-fi webhook secret (optional)
 `);
     process.exit(0);
   }
@@ -211,6 +210,7 @@ async function run(): Promise<void> {
   const dbPath = resolvePath(config.dbPath);
   const db = createDatabase(dbPath);
   loadBuiltinSkills(db);
+  const revenueTracker = new RevenueTracker(db.raw);
 
   // Persist createdAt: only set if not already stored (never overwrite)
   const existingCreatedAt = db.getIdentity("createdAt");
@@ -367,6 +367,7 @@ async function run(): Promise<void> {
   const shutdown = () => {
     logger.info(`[${new Date().toISOString()}] Shutting down...`);
     heartbeat.stop();
+    webhookServer.close();
     db.setAgentState("sleeping");
     db.close();
     process.exit(0);
@@ -374,6 +375,34 @@ async function run(): Promise<void> {
 
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
+
+  // ─── Webhook HTTP Server ───────────────────────────────────
+  const port = parseInt(process.env.PORT || "3000", 10);
+  const webhookServer = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/webhook/payment") {
+      let body = "";
+      req.on("data", (chunk) => { body += chunk; });
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body) as Record<string, unknown>;
+          const secret = process.env.KOFI_WEBHOOK_SECRET;
+          const provided = req.headers["x-kofi-signature"] as string | undefined;
+          const result = handlePaymentWebhook(parsed, revenueTracker, secret, provided);
+          res.writeHead(result.status, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ message: result.message }));
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ message: "invalid JSON" }));
+        }
+      });
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  webhookServer.listen(port, () => {
+    logger.info(`[${new Date().toISOString()}] Webhook server listening on port ${port}`);
+  });
 
   // ─── Main Run Loop ──────────────────────────────────────────
   // The automaton alternates between running and sleeping.
