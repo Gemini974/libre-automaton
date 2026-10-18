@@ -278,6 +278,7 @@ async function run(): Promise<void> {
 
   // Resolve Ollama base URL: env var takes precedence over config
   const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || config.ollamaBaseUrl;
+  const ollamaApiKey = process.env.OLLAMA_API_KEY || config.ollamaApiKey;
 
   // Create inference client — pass a live registry lookup so model names like
   // "gpt-oss:120b" route to Ollama based on their registered provider, not heuristics.
@@ -292,6 +293,7 @@ async function run(): Promise<void> {
     openaiApiKey: config.openaiApiKey,
     anthropicApiKey: config.anthropicApiKey,
     ollamaBaseUrl,
+    ollamaApiKey,
     getModelProvider: (modelId) => modelRegistry.get(modelId)?.provider,
   });
 
