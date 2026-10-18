@@ -14,7 +14,6 @@ import type {
   SurvivalTier,
 } from "../types.js";
 import { getSurvivalTier, formatCredits } from "../conway/credits.js";
-import { getUsdcBalance } from "../conway/x402.js";
 
 export interface ResourceStatus {
   financial: FinancialState;
@@ -40,9 +39,6 @@ export async function checkResources(
 
   // Check USDC
   let usdcBalance = 0;
-  try {
-    usdcBalance = await getUsdcBalance(identity.address);
-  } catch {}
 
   // Check sandbox health
   let sandboxHealthy = true;

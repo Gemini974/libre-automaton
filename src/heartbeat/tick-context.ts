@@ -14,7 +14,6 @@ import type {
   TickContext,
 } from "../types.js";
 import { getSurvivalTier } from "../conway/credits.js";
-import { getUsdcBalance } from "../conway/x402.js";
 import { createLogger } from "../observability/logger.js";
 
 type DatabaseType = BetterSqlite3.Database;
@@ -56,14 +55,6 @@ export async function buildTickContext(
   }
 
   let usdcBalance = 0;
-  if (walletAddress) {
-    try {
-      const network = chainType === "solana" ? "solana:mainnet" : "eip155:8453";
-      usdcBalance = await getUsdcBalance(walletAddress, network, chainType as any);
-    } catch (err: any) {
-      logger.error("Failed to fetch USDC balance", err instanceof Error ? err : undefined);
-    }
-  }
 
   const survivalTier = getSurvivalTier(creditBalance);
   const lowComputeMultiplier = config.lowComputeMultiplier ?? 4;
