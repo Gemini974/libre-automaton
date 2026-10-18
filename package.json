@@ -1,5 +1,5 @@
 {
-  "name": "@conway/automaton",
+  "name": "libre-automaton",
   "version": "0.2.1",
   "description": "Conway Automaton - Sovereign AI Agent Runtime",
   "type": "module",
@@ -27,7 +27,7 @@
     "type": "git",
     "url": "https://github.com/Conway-Research/automaton.git"
   },
-  "homepage": "https://conway.tech",
+  "homepage": "https://github.com/gemini974/libre-automaton",
   "keywords": [
     "autonomous-agent",
     "sovereign-ai",

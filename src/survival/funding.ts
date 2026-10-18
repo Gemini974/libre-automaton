@@ -12,7 +12,8 @@ import type {
   ConwayClient,
   SurvivalTier,
 } from "../types.js";
-import { formatCredits } from "../conway/credits.js";
+
+const formatCredits = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 export interface FundingAttempt {
   strategy: string;

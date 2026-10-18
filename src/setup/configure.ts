@@ -198,14 +198,14 @@ async function configureProviders(config: AutomatonConfig): Promise<void> {
   console.log(chalk.cyan("\n  ── Inference Providers ─────────────────────────\n"));
   console.log(chalk.dim("  Press Enter to keep the current value. Type - to clear an optional field.\n"));
 
-  config.conwayApiKey = await askRequiredString(
-    "Conway API key",
-    config.conwayApiKey,
+  config.ollamaApiKey = await askRequiredString(
+    "Ollama Cloud API key  (from api.ollama.com)",
+    config.ollamaApiKey ?? "",
   );
 
-  config.openaiApiKey = await askString("OpenAI API key  (sk-...)", config.openaiApiKey) || undefined;
-  config.anthropicApiKey = await askString("Anthropic API key  (sk-ant-...)", config.anthropicApiKey) || undefined;
-  config.ollamaBaseUrl = await askString("Ollama base URL  (http://localhost:11434)", config.ollamaBaseUrl) || undefined;
+  config.ollamaBaseUrl = await askString("Ollama base URL  (https://api.ollama.com)", config.ollamaBaseUrl) || "https://api.ollama.com";
+  config.openaiApiKey = await askString("OpenAI API key  (optional, sk-...)", config.openaiApiKey) || undefined;
+  config.anthropicApiKey = await askString("Anthropic API key  (optional, sk-ant-...)", config.anthropicApiKey) || undefined;
 
   console.log("");
 }

@@ -259,84 +259,6 @@ export function createBuiltinTools(sandboxId: string): AutomatonTool[] {
       },
     },
     {
-      name: "check_usdc_balance",
-      description: "Check your on-chain USDC balance.",
-      category: "conway",
-      riskLevel: "safe",
-      parameters: { type: "object", properties: {} },
-      execute: async (_args, ctx) => {
-        const { getUsdcBalance } = await import("../conway/x402.js");
-        const chainType = ctx.config.chainType || ctx.identity.chainType || "evm";
-        const network = chainType === "solana" ? "solana:mainnet" : "eip155:8453";
-        const balance = await getUsdcBalance(ctx.identity.address, network, chainType);
-        const networkLabel = chainType === "solana" ? "Solana" : "Base";
-        return `USDC balance: ${balance.toFixed(6)} USDC on ${networkLabel}`;
-      },
-    },
-    {
-      name: "topup_credits",
-      description:
-        "Buy Conway compute credits by paying USDC from your wallet via x402. Valid tier amounts: $5, $25, $100, $500, $1000, $2500. Check your USDC balance first with check_usdc_balance.",
-      category: "financial",
-      riskLevel: "caution",
-      parameters: {
-        type: "object",
-        properties: {
-          amount_usd: {
-            type: "number",
-            description:
-              "Amount in USD to spend on credits. Must be one of the valid tiers: 5, 25, 100, 500, 1000, 2500.",
-          },
-        },
-        required: ["amount_usd"],
-      },
-      execute: async (args, ctx) => {
-        // Solana guard: x402 topup is EVM-only
-        const chainType = ctx.config.chainType || ctx.identity.chainType || "evm";
-        if (chainType === "solana") {
-          return "Credit topup via x402 requires an EVM wallet. Solana automatons should fund credits via the Conway dashboard or credits API.";
-        }
-
-        const { topupCredits, TOPUP_TIERS } =
-          await import("../conway/topup.js");
-        const amountUsd = args.amount_usd as number;
-
-        if (!TOPUP_TIERS.includes(amountUsd)) {
-          return `Invalid tier. Valid amounts (USD): ${TOPUP_TIERS.join(", ")}`;
-        }
-
-        // Check USDC balance first (EVM-only path after Solana guard above)
-        const { getUsdcBalance } = await import("../conway/x402.js");
-        const usdcBalance = await getUsdcBalance(ctx.identity.address, "eip155:8453");
-        if (usdcBalance < amountUsd) {
-          return `Insufficient USDC. Balance: $${usdcBalance.toFixed(2)}, requested: $${amountUsd}. Choose a smaller tier or wait for funding.`;
-        }
-
-        const result = await topupCredits(
-          ctx.config.conwayApiUrl,
-          ctx.identity.account,
-          amountUsd,
-        );
-
-        if (!result.success) {
-          return `Credit topup failed: ${result.error}`;
-        }
-
-        // Record transaction
-        const { ulid } = await import("ulid");
-        ctx.db.insertTransaction({
-          id: ulid(),
-          type: "credit_purchase",
-          amountCents: amountUsd * 100,
-          balanceAfterCents: result.creditsCentsAdded,
-          description: `x402 credit topup: $${amountUsd} USD`,
-          timestamp: new Date().toISOString(),
-        });
-
-        return `Credit topup successful: +$${amountUsd} (${amountUsd * 100} cents) credits purchased via x402. Check your new balance with check_credits.`;
-      },
-    },
-    {
       name: "create_sandbox",
       description:
         "Create a new Conway sandbox (separate VM) for sub-tasks or testing.",
@@ -1650,41 +1572,6 @@ Model: ${ctx.inference.getDefaultModel()}
             lifecycle,
           );
         } catch (err: any) {
-          // Auto-topup on 402 insufficient credits and retry once
-          const is402 = err?.status === 402 ||
-            err?.message?.includes("INSUFFICIENT_CREDITS");
-          if (is402) {
-            const COOLDOWN_MS = 60_000;
-            const last = ctx.db.getKV("last_sandbox_topup_attempt");
-            const cooldownOk = !last ||
-              Date.now() - new Date(last).getTime() >= COOLDOWN_MS;
-
-            if (cooldownOk) {
-              ctx.db.setKV("last_sandbox_topup_attempt", new Date().toISOString());
-              const { topupForSandbox } = await import("../conway/topup.js");
-              const topup = await topupForSandbox({
-                apiUrl: ctx.config.conwayApiUrl,
-                account: ctx.identity.account,
-                error: err,
-                chainType: ctx.config.chainType || ctx.identity.chainType || "evm",
-              });
-              if (topup?.success) {
-                const retryLifecycle = new ChildLifecycle(ctx.db.raw);
-                const retryGenesis = generateGenesisConfig(ctx.identity, ctx.config, {
-                  name: args.name as string,
-                  specialization: args.specialization as string | undefined,
-                  message: args.message as string | undefined,
-                });
-                child = await spawnChild(
-                  ctx.conway,
-                  ctx.identity,
-                  ctx.db,
-                  retryGenesis,
-                  retryLifecycle,
-                );
-              }
-            }
-          }
           if (!child) throw err;
         }
 
@@ -2723,78 +2610,6 @@ Model: ${ctx.inference.getDefaultModel()}
     },
 
     // ── x402 Payment Tool ──
-    {
-      name: "x402_fetch",
-      description:
-        "Fetch a URL with automatic x402 USDC payment. If the server responds with HTTP 402, signs a USDC payment and retries. Use this to access paid APIs and services.",
-      category: "financial",
-      riskLevel: "dangerous",
-      parameters: {
-        type: "object",
-        properties: {
-          url: {
-            type: "string",
-            description: "The URL to fetch",
-          },
-          method: {
-            type: "string",
-            description: "HTTP method (default: GET)",
-          },
-          body: {
-            type: "string",
-            description: "Request body for POST/PUT (JSON string)",
-          },
-          headers: {
-            type: "string",
-            description: "Additional headers as JSON string",
-          },
-        },
-        required: ["url"],
-      },
-      execute: async (args, ctx) => {
-        // Solana guard: x402 payments are EVM-only
-        const chainType = ctx.config.chainType || ctx.identity.chainType || "evm";
-        if (chainType === "solana") {
-          return "x402 payment requires an EVM wallet. Solana automatons cannot sign EVM payment authorizations. Use Conway credits API instead.";
-        }
-
-        const { x402Fetch } = await import("../conway/x402.js");
-        const { DEFAULT_TREASURY_POLICY } = await import("../types.js");
-        const url = args.url as string;
-        const method = (args.method as string) || "GET";
-        const body = args.body as string | undefined;
-        const extraHeaders = args.headers
-          ? JSON.parse(args.headers as string)
-          : undefined;
-
-        const maxPayment =
-          ctx.config.treasuryPolicy?.maxX402PaymentCents ??
-          DEFAULT_TREASURY_POLICY.maxX402PaymentCents;
-        const result = await x402Fetch(
-          url,
-          ctx.identity.account,
-          method,
-          body,
-          extraHeaders,
-          maxPayment,
-        );
-
-        if (!result.success) {
-          return `x402 fetch failed: ${result.error || "Unknown error"}`;
-        }
-
-        const responseStr =
-          typeof result.response === "string"
-            ? result.response
-            : JSON.stringify(result.response, null, 2);
-
-        // Truncate very large responses
-        if (responseStr.length > 10000) {
-          return `x402 fetch succeeded (truncated):\n${responseStr.slice(0, 10000)}...`;
-        }
-        return `x402 fetch succeeded:\n${responseStr}`;
-      },
-    },
 
     // === Orchestration Tools ===
     {

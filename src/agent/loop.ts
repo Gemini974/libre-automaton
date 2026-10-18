@@ -36,7 +36,6 @@ import {
 } from "./tools.js";
 import { sanitizeInput } from "./injection-defense.js";
 import { getSurvivalTier } from "../conway/credits.js";
-import { getUsdcBalance } from "../conway/x402.js";
 import {
   claimInboxMessages,
   markInboxProcessed,
@@ -242,65 +241,6 @@ export async function runAgentLoop(
                 sandboxId: child.sandboxId,
               };
             } catch (sandboxError: any) {
-              // If the error is a 402 (insufficient credits), attempt topup and retry once
-              const is402 = sandboxError?.status === 402 ||
-                sandboxError?.message?.includes("INSUFFICIENT_CREDITS");
-
-              if (is402) {
-                const SANDBOX_TOPUP_COOLDOWN_MS = 60_000;
-                const lastAttempt = db.getKV("last_sandbox_topup_attempt");
-                const cooldownExpired = !lastAttempt ||
-                  Date.now() - new Date(lastAttempt).getTime() >= SANDBOX_TOPUP_COOLDOWN_MS;
-
-                if (cooldownExpired) {
-                  db.setKV("last_sandbox_topup_attempt", new Date().toISOString());
-                  try {
-                    const { topupForSandbox } = await import("../conway/topup.js");
-                    const topupResult = await topupForSandbox({
-                      apiUrl: config.conwayApiUrl,
-                      account: identity.account,
-                      error: sandboxError,
-                      chainType: config.chainType || identity.chainType || "evm",
-                    });
-
-                    if (topupResult?.success) {
-                      logger.info(`Sandbox topup succeeded ($${topupResult.amountUsd}), retrying spawn`, {
-                        taskId: task.id,
-                      });
-                      // Retry spawn once after successful topup
-                      try {
-                        const { generateGenesisConfig: genGenesis } = await import("../replication/genesis.js");
-                        const { spawnChild: retrySpawn } = await import("../replication/spawn.js");
-                        const { ChildLifecycle: RetryLifecycle } = await import("../replication/lifecycle.js");
-
-                        const retryRole = task.agentRole ?? "generalist";
-                        const retryGenesis = genGenesis(identity, config, {
-                          name: `worker-${retryRole}-${Date.now().toString(36)}`,
-                          specialization: `${retryRole}: ${task.title}`,
-                        });
-                        const retryLifecycle = new RetryLifecycle(db.raw);
-                        const child = await retrySpawn(conway, identity, db, retryGenesis, retryLifecycle);
-                        return {
-                          address: child.address,
-                          name: child.name,
-                          sandboxId: child.sandboxId,
-                        };
-                      } catch (retryError) {
-                        logger.warn("Spawn retry after topup failed", {
-                          taskId: task.id,
-                          error: retryError instanceof Error ? retryError.message : String(retryError),
-                        });
-                      }
-                    }
-                  } catch (topupError) {
-                    logger.warn("Sandbox topup attempt failed", {
-                      taskId: task.id,
-                      error: topupError instanceof Error ? topupError.message : String(topupError),
-                    });
-                  }
-                }
-              }
-
               // Conway sandbox unavailable — fall back to local worker
               logger.info("Conway sandbox unavailable, spawning local worker", {
                 taskId: task.id,
@@ -441,33 +381,6 @@ export async function runAgentLoop(
         // available, buy credits NOW — before attempting inference.
         // This prevents the agent from dying mid-loop while waiting for
         // the heartbeat to fire. Uses a 60s cooldown to avoid hammering.
-        if ((tier === "critical" || tier === "low_compute") && financial.usdcBalance >= 5) {
-          const INLINE_TOPUP_COOLDOWN_MS = 60_000;
-          const lastInlineTopup = db.getKV("last_inline_topup_attempt");
-          const cooldownExpired = !lastInlineTopup ||
-            Date.now() - new Date(lastInlineTopup).getTime() >= INLINE_TOPUP_COOLDOWN_MS;
-
-          if (cooldownExpired) {
-            db.setKV("last_inline_topup_attempt", new Date().toISOString());
-            try {
-              const { bootstrapTopup } = await import("../conway/topup.js");
-              const topupResult = await bootstrapTopup({
-                apiUrl: config.conwayApiUrl,
-                account: identity.account,
-                creditsCents: financial.creditsCents,
-                chainType: config.chainType || identity.chainType || "evm",
-              });
-              if (topupResult?.success) {
-                log(config, `[AUTO-TOPUP] Bought $${topupResult.amountUsd} credits from USDC mid-loop`);
-                // Re-fetch financial state after topup so the rest of
-                // the turn sees the updated balance.
-                financial = await getFinancialState(conway, identity.address, db, config.chainType || identity.chainType || "evm");
-              }
-            } catch (err: any) {
-              logger.warn(`Inline auto-topup failed: ${err.message}`);
-            }
-          }
-        }
 
         // Re-evaluate tier after potential topup
         const effectiveTier = getSurvivalTier(financial.creditsCents);
@@ -984,8 +897,7 @@ async function getFinancialState(
   }
 
   try {
-    const network = chainType === "solana" ? "solana:mainnet" : "eip155:8453";
-    usdcBalance = await getUsdcBalance(address, network, chainType as any);
+    // USDC balance tracking removed (Conway payment layer stripped)
     if (usdcBalance > 0) _lastKnownUsdc = usdcBalance;
   } catch (error) {
     logger.error("USDC balance fetch failed", error instanceof Error ? error : undefined);

@@ -13,8 +13,8 @@ import type {
   FinancialState,
   SurvivalTier,
 } from "../types.js";
-import { getSurvivalTier, formatCredits } from "../conway/credits.js";
-import { getUsdcBalance } from "../conway/x402.js";
+import { formatCredits } from "../conway/credits.js";
+import type { RevenueTracker } from "./revenue-tracker.js";
 
 export interface ResourceStatus {
   financial: FinancialState;
@@ -31,6 +31,8 @@ export async function checkResources(
   identity: AutomatonIdentity,
   conway: ConwayClient,
   db: AutomatonDatabase,
+  // TODO(Task 8): wire a RevenueTracker in at the call sites; null falls back to "normal".
+  revenueTracker: RevenueTracker | null = null,
 ): Promise<ResourceStatus> {
   // Check credits
   let creditsCents = 0;
@@ -40,9 +42,6 @@ export async function checkResources(
 
   // Check USDC
   let usdcBalance = 0;
-  try {
-    usdcBalance = await getUsdcBalance(identity.address);
-  } catch {}
 
   // Check sandbox health
   let sandboxHealthy = true;
@@ -59,7 +58,11 @@ export async function checkResources(
     lastChecked: new Date().toISOString(),
   };
 
-  const tier = getSurvivalTier(creditsCents);
+  const birthMs = Date.parse(identity.createdAt);
+  const tier: SurvivalTier =
+    revenueTracker && Number.isFinite(birthMs)
+      ? revenueTracker.currentTier(birthMs)
+      : "normal";
   const prevTierStr = db.getKV("current_tier");
   const previousTier = (prevTierStr as SurvivalTier) || null;
   const tierChanged = previousTier !== null && previousTier !== tier;

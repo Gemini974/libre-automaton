@@ -24,6 +24,7 @@ import { consumeNextWakeEvent, insertWakeEvent } from "./state/database.js";
 import { runAgentLoop } from "./agent/loop.js";
 import { ModelRegistry } from "./inference/registry.js";
 import { loadSkills } from "./skills/loader.js";
+import { loadBuiltinSkills } from "./skills/builtin-loader.js";
 import { initStateRepo } from "./git/state-versioning.js";
 import { createSocialClient } from "./social/client.js";
 import { PolicyEngine } from "./agent/policy-engine.js";
@@ -33,9 +34,11 @@ import type { AutomatonIdentity, AgentState, Skill, SocialClientInterface } from
 import { DEFAULT_TREASURY_POLICY } from "./types.js";
 import { createLogger, setGlobalLogLevel, StructuredLogger } from "./observability/logger.js";
 import { prettySink } from "./observability/pretty-sink.js";
-import { bootstrapTopup } from "./conway/topup.js";
 import { randomUUID } from "crypto";
 import { keccak256, toHex } from "viem";
+import http from "http";
+import { handlePaymentWebhook } from "./webhook/payment.js";
+import { RevenueTracker } from "./survival/revenue-tracker.js";
 
 const logger = createLogger("main");
 const VERSION = "0.2.1";
@@ -67,9 +70,10 @@ Usage:
   automaton --help         Show this help
 
 Environment:
-  CONWAY_API_URL           Conway API URL (default: https://api.conway.tech)
-  CONWAY_API_KEY           Conway API key (overrides config)
-  OLLAMA_BASE_URL          Ollama base URL (overrides config, e.g. http://localhost:11434)
+  OLLAMA_API_KEY           Ollama Cloud API key (required for api.ollama.com)
+  OLLAMA_BASE_URL          Ollama base URL (default: https://api.ollama.com)
+  PORT                     HTTP server port for webhooks (default: 3000)
+  KOFI_WEBHOOK_SECRET      Ko-fi webhook secret (optional)
 `);
     process.exit(0);
   }
@@ -205,6 +209,8 @@ async function run(): Promise<void> {
   // Initialize database
   const dbPath = resolvePath(config.dbPath);
   const db = createDatabase(dbPath);
+  loadBuiltinSkills(db);
+  const revenueTracker = new RevenueTracker(db.raw);
 
   // Persist createdAt: only set if not already stored (never overwrite)
   const existingCreatedAt = db.getIdentity("createdAt");
@@ -279,6 +285,7 @@ async function run(): Promise<void> {
 
   // Resolve Ollama base URL: env var takes precedence over config
   const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || config.ollamaBaseUrl;
+  const ollamaApiKey = process.env.OLLAMA_API_KEY || config.ollamaApiKey;
 
   // Create inference client — pass a live registry lookup so model names like
   // "gpt-oss:120b" route to Ollama based on their registered provider, not heuristics.
@@ -293,6 +300,7 @@ async function run(): Promise<void> {
     openaiApiKey: config.openaiApiKey,
     anthropicApiKey: config.anthropicApiKey,
     ollamaBaseUrl,
+    ollamaApiKey,
     getModelProvider: (modelId) => modelRegistry.get(modelId)?.provider,
   });
 
@@ -336,38 +344,6 @@ async function run(): Promise<void> {
     logger.warn(`[${new Date().toISOString()}] State repo init failed: ${err.message}`);
   }
 
-  // Bootstrap topup: buy minimum credits ($5) from USDC so the agent can start.
-  // The agent decides larger topups itself via the topup_credits tool.
-  try {
-    let bootstrapTimer: ReturnType<typeof setTimeout>;
-    const bootstrapTimeout = new Promise<null>((_, reject) => {
-      bootstrapTimer = setTimeout(() => reject(new Error("bootstrap topup timed out")), 15_000);
-    });
-    try {
-      await Promise.race([
-        (async () => {
-          const creditsCents = await conway.getCreditsBalance().catch(() => 0);
-          const topupResult = await bootstrapTopup({
-            apiUrl: config.conwayApiUrl,
-            account,
-            creditsCents,
-            chainType: resolvedChainType,
-          });
-          if (topupResult?.success) {
-            logger.info(
-              `[${new Date().toISOString()}] Bootstrap topup: +$${topupResult.amountUsd} credits from USDC`,
-            );
-          }
-        })(),
-        bootstrapTimeout,
-      ]);
-    } finally {
-      clearTimeout(bootstrapTimer!);
-    }
-  } catch (err: any) {
-    logger.warn(`[${new Date().toISOString()}] Bootstrap topup skipped: ${err.message}`);
-  }
-
   // Start heartbeat daemon (Phase 1.1: DurableScheduler)
   const heartbeat = createHeartbeatDaemon({
     identity,
@@ -391,6 +367,7 @@ async function run(): Promise<void> {
   const shutdown = () => {
     logger.info(`[${new Date().toISOString()}] Shutting down...`);
     heartbeat.stop();
+    webhookServer.close();
     db.setAgentState("sleeping");
     db.close();
     process.exit(0);
@@ -398,6 +375,34 @@ async function run(): Promise<void> {
 
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
+
+  // ─── Webhook HTTP Server ───────────────────────────────────
+  const port = parseInt(process.env.PORT || "3000", 10);
+  const webhookServer = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/webhook/payment") {
+      let body = "";
+      req.on("data", (chunk) => { body += chunk; });
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body) as Record<string, unknown>;
+          const secret = process.env.KOFI_WEBHOOK_SECRET;
+          const provided = req.headers["x-kofi-signature"] as string | undefined;
+          const result = handlePaymentWebhook(parsed, revenueTracker, secret, provided);
+          res.writeHead(result.status, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ message: result.message }));
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ message: "invalid JSON" }));
+        }
+      });
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  webhookServer.listen(port, () => {
+    logger.info(`[${new Date().toISOString()}] Webhook server listening on port ${port}`);
+  });
 
   // ─── Main Run Loop ──────────────────────────────────────────
   // The automaton alternates between running and sleeping.
