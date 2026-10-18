@@ -5,7 +5,7 @@
  * The database IS the automaton's memory.
  */
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const CREATE_TABLES = `
   -- Schema version tracking
@@ -656,6 +656,19 @@ export const MIGRATION_V11 = `
   -- Schema version: 11
   -- Add chain_type column to children table for multi-chain support
   ALTER TABLE children ADD COLUMN chain_type TEXT DEFAULT 'evm';
+`;
+
+export const MIGRATION_V12 = `
+  -- Schema version: 12
+  -- Tables: revenue_events (libre-automaton revenue-based survival)
+  CREATE TABLE IF NOT EXISTS revenue_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount_usd REAL NOT NULL CHECK(amount_usd > 0),
+    source TEXT NOT NULL CHECK(source IN ('kofi','paypal','stripe','onchain')),
+    description TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX IF NOT EXISTS idx_revenue_created ON revenue_events(created_at);
 `;
 
 export const MIGRATION_V10 = `
