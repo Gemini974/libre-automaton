@@ -33,7 +33,21 @@ python3 "${CLAUDE_SKILL_DIR}/plan.py" plan --symbol MGC --side short \
     --entry 3795 --stop 3808 --target 3725                             # niveaux donnés par l'utilisateur
 ```
 
-Autres options : `--r 1.5`, `--max-risk 80`, `--max-contracts 5`,
+Données de marché avec OpenBB (fournisseur yfinance, gratuit, futures
+retardés de 10 à 20 minutes ; TopstepX reste la référence pour les ordres) :
+
+```bash
+pip install openbb-core openbb-yfinance openbb-equity openbb-crypto   # une fois par machine
+python3 "${CLAUDE_SKILL_DIR}/market.py" levels MBT                   # dernier, haut/bas du jour, de la veille, 5 jours, ATR 15m
+python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'ouverture + déclenchement, commande plan.py prête
+python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
+```
+
+Réseau requis : query1.finance.yahoo.com, query2.finance.yahoo.com,
+fc.yahoo.com. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
+OpenBB ou le réseau manque, revenir aux captures de l'utilisateur.
+
+Autres options de plan.py : `--r 1.5`, `--max-risk 80`, `--max-contracts 5`,
 `--min-rr 1.5`, `--min-ticks 10`, `--daily-limit 250`, `--trades-today 1`,
 `--max-trades 2`, `--consistency-cap 1400`, `--now 2026-11-18T18:50`.
 
@@ -70,7 +84,9 @@ BTC1! sur TradingView cote comme le MBT. Si l'utilisateur envoie BTC/USDT
    clés, RSI. Fondamentaux en une ligne. Le biais dit quel côté est
    prioritaire, il n'interdit pas l'autre.
 3. **Range d'ouverture.** Plus haut et plus bas des 15 premières minutes de
-   la session. Le milieu sert de stop.
+   la session (`market.py orb`). Le milieu sert de stop. `market.py levels`
+   donne les niveaux de la veille et l'ATR : un stop sous ~1 ATR 15m est
+   trop serré.
 4. **Entrée.** La première bougie de 5 minutes (ou 15 minutes) qui CLÔTURE
    au-dessus du haut (achat) ou sous le bas (vente). Une mèche ne compte
    pas. Variante sur un niveau : cassure d'une ligne ou d'un support, puis
