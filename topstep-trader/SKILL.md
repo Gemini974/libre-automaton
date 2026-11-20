@@ -115,16 +115,20 @@ BTC1! sur TradingView cote comme le MBT. Si l'utilisateur envoie BTC/USDT
    l'objectif. Annuler les ordres non exécutés avant l'annonce ou avant
    00:30. À plat avant 01:10.
 
-## Règles du compte (à ajuster si l'utilisateur les change)
+## Règles du compte (celles de Topstep uniquement)
 
-- Limite journalière Topstep 1 000 $ ; limite personnelle **−250 $ par
-  jour** ; perte maximale 2 000 $ (suiveuse).
-- **2 trades par jour**, risque **70 à 120 $** par trade.
-- Règle de régularité : arrêter la journée au-delà d'environ +1 400 $.
-- Un seul trade à la fois sur des actifs corrélés (BTC, or, euro et Nasdaq
-  réagissent tous au dollar et à la Fed).
-- Après une perte : pas de trade de revanche. Après deux erreurs de
-  manipulation : arrêter la journée.
+- Limite journalière (DLL) : **1 000 $** (`--daily-limit`, défaut 1000).
+- Perte maximale (MLL) : **2 000 $ suiveuse** sur le meilleur solde de fin
+  de journée, bloquée à 50 000 $. Vérifier le plancher dans ACCOUNT.
+- Règle de régularité : la meilleure journée doit rester sous ~50 % du
+  profit total (vérifier le pourcentage du Combine). `--consistency-cap`
+  avertit seulement.
+- Aucune limite de nombre de trades : `--max-trades` vaut 0 par défaut.
+  L'utilisateur peut s'en fixer une s'il le souhaite.
+- Le risque par trade (`--max-risk`, défaut 80 $) est un réglage de taille,
+  pas une règle Topstep : l'utilisateur le choisit.
+- Conseils (pas des règles) : ne pas cumuler des actifs corrélés (BTC, or,
+  euro, Nasdaq), pas de trade de revanche après une perte.
 
 ## Ce qu'il ne fait jamais
 

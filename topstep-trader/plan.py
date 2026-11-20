@@ -104,7 +104,7 @@ def cmd_plan(a):
         blocks.append(f"rendement/risque {rr:.2f} < minimum {a.min_rr}")
     if risk_total > remaining:
         blocks.append(f"risque {risk_total:.2f} $ > marge du jour {remaining:.2f} $")
-    if a.trades_today >= a.max_trades:
+    if a.max_trades and a.trades_today >= a.max_trades:
         blocks.append(f"déjà {a.trades_today} trades aujourd'hui (max {a.max_trades})")
     if a.day_pnl + reward_total > a.consistency_cap:
         warns.append(f"si l'objectif est touché, la journée dépasse {a.consistency_cap:.0f} $ (règle de régularité) : sors une partie plus tôt")
@@ -156,9 +156,9 @@ def main():
     q.add_argument("--min-ticks", type=int, default=10)
     q.add_argument("--min-rr", type=float, default=1.5)
     q.add_argument("--day-pnl", type=float, default=0.0)
-    q.add_argument("--daily-limit", type=float, default=250.0)
+    q.add_argument("--daily-limit", type=float, default=1000.0, help="limite journalière Topstep (DLL)")
     q.add_argument("--trades-today", type=int, default=0)
-    q.add_argument("--max-trades", type=int, default=2)
+    q.add_argument("--max-trades", type=int, default=0, help="0 = pas de limite (Topstep n'en impose pas)")
     q.add_argument("--consistency-cap", type=float, default=1400.0)
     q.add_argument("--news", help="heure d'une annonce, HH:MM heure de La Réunion")
     q.add_argument("--now", help="AAAA-MM-JJTHH:MM heure de La Réunion (tests)")
