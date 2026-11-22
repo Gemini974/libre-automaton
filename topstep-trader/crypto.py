@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """topstep-trader crypto context from free public APIs (no key). Standard library only.
 
+  python3 crypto.py market               # capitalisation, volume, dominance BTC (Coinpaprika)
   python3 crypto.py onchain              # stablecoins (DefiLlama), difficulty, hashrate, fees (Mempool)
   python3 crypto.py derivs [btc|eth|gold|us500|us100|oil|silver]
                                          # funding, open interest, liquidation clusters, key levels (Swiftedge)
@@ -9,7 +10,7 @@
   python3 crypto.py all
 
 Hosts: stablecoins.llama.fi, mempool.space, swiftedge.uk, marginpad.io,
-www.corpstacking.com, api.coingecko.com. Third-party data: say where it comes from.
+www.corpstacking.com, api.coinpaprika.com. Third-party data: say where it comes from.
 """
 import argparse
 import json
@@ -45,6 +46,15 @@ def usd(x, sign=False):
 
 def n(x):
     return f"{x:,.0f}".replace(",", " ")
+
+
+@safe
+def market(_a=None):
+    print("MARCHÉ CRYPTO GLOBAL  [Coinpaprika]")
+    g = get("https://api.coinpaprika.com/v1/global")
+    ath = 100 * (g["market_cap_usd"] / g["market_cap_ath_value"] - 1)
+    print(f"  Capitalisation : {usd(g['market_cap_usd'])} ({g['market_cap_change_24h']:+.1f} % sur 24 h, {ath:+.0f} % depuis le record du {g['market_cap_ath_date'][:10]})")
+    print(f"  Volume 24 h : {usd(g['volume_24h_usd'])} ({g['volume_24h_change_24h']:+.0f} %). Dominance du BTC : {g['bitcoin_dominance_percentage']:.1f} %")
 
 
 @safe
@@ -131,6 +141,7 @@ def flows(a):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("market")
     sub.add_parser("onchain")
     d = sub.add_parser("derivs")
     d.add_argument("market", nargs="?", default="btc")
@@ -142,11 +153,11 @@ def main():
     print(f"Relevé du {datetime.now(LOCAL):%d/%m %H:%M} (La Réunion)")
     if a.cmd == "all":
         a.market, a.days = "btc", 7
-        for fn in (onchain, derivs, sentiment, flows):
+        for fn in (market, onchain, derivs, sentiment, flows):
             fn(a)
             print()
     else:
-        {"onchain": onchain, "derivs": derivs, "sentiment": sentiment, "flows": flows}[a.cmd](a)
+        {"market": market, "onchain": onchain, "derivs": derivs, "sentiment": sentiment, "flows": flows}[a.cmd](a)
 
 
 if __name__ == "__main__":

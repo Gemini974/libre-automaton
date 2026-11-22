@@ -51,6 +51,7 @@ standard seulement) :
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/crypto.py" all          # tout ce qui suit, d'un coup
+python3 "${CLAUDE_SKILL_DIR}/crypto.py" market       # capitalisation totale, volume, dominance du BTC (Coinpaprika)
 python3 "${CLAUDE_SKILL_DIR}/crypto.py" onchain      # stablecoins (DefiLlama), difficulté, puissance, frais (Mempool)
 python3 "${CLAUDE_SKILL_DIR}/crypto.py" derivs btc   # financement, positions ouvertes, amas de liquidations, murs d'ordres (Swiftedge)
                                                      # aussi : eth, gold, us500, us100, oil, silver
@@ -83,7 +84,7 @@ biais vendeur de fond. Citer la source de chaque chiffre : ce sont des données
 de tiers, parfois sur d'autres plateformes que le CME.
 
 Réseau requis : query1.finance.yahoo.com, query2.finance.yahoo.com,
-fc.yahoo.com ; pour crypto.py : stablecoins.llama.fi, mempool.space,
+fc.yahoo.com ; pour crypto.py : api.coinpaprika.com, stablecoins.llama.fi, mempool.space,
 swiftedge.uk, marginpad.io, www.corpstacking.com ; pour geo.py :
 api.gdeltproject.org, services9.arcgis.com, gamma-api.polymarket.com,
 www.federalregister.gov, earthquake.usgs.gov. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
