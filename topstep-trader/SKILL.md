@@ -58,6 +58,23 @@ python3 "${CLAUDE_SKILL_DIR}/crypto.py" sentiment    # Fear & Greed, liquidation
 python3 "${CLAUDE_SKILL_DIR}/crypto.py" flows        # achats et ventes des ETF et entreprises, 7 jours (CorpStacking)
 ```
 
+Géopolitique, trafic maritime et probabilités d'événements (API publiques, sans clé) :
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/geo.py" all             # tout ce qui suit
+python3 "${CLAUDE_SKILL_DIR}/geo.py" news            # GDELT : volume d'actualité Iran/Hormuz, droits de douane, Russie, Fed, Taïwan + titres
+python3 "${CLAUDE_SKILL_DIR}/geo.py" news "Venezuela oil"   # n'importe quel sujet
+python3 "${CLAUDE_SKILL_DIR}/geo.py" ships           # IMF PortWatch : transits par jour à Hormuz, Bab el-Mandeb, Suez, Panama, Malacca…
+python3 "${CLAUDE_SKILL_DIR}/geo.py" odds            # Polymarket : probabilités Fed, guerres, Bitcoin, droits de douane
+python3 "${CLAUDE_SKILL_DIR}/geo.py" decrees         # Federal Register : décisions présidentielles, textes sur les droits de douane
+python3 "${CLAUDE_SKILL_DIR}/geo.py" quakes          # USGS : séismes M6+ de la semaine
+```
+
+GDELT limite à une requête toutes les 5 secondes et peut refuser (HTTP 429)
+pendant un moment : réessayer plus tard. PortWatch a quelques jours de retard.
+Lire un volume d'actualité en forte hausse ou un détroit en chute comme un
+risque d'écart de prix sur les actifs touchés (pétrole, or, dollar, indices).
+
 Comment s'en servir : les amas de liquidations et les murs d'ordres servent
 d'aimants et de résistances pour placer entrées et objectifs ; un financement
 négatif avec beaucoup de vendeurs au-dessus du prix annonce un risque de
@@ -67,7 +84,9 @@ de tiers, parfois sur d'autres plateformes que le CME.
 
 Réseau requis : query1.finance.yahoo.com, query2.finance.yahoo.com,
 fc.yahoo.com ; pour crypto.py : stablecoins.llama.fi, mempool.space,
-swiftedge.uk, marginpad.io, www.corpstacking.com. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
+swiftedge.uk, marginpad.io, www.corpstacking.com ; pour geo.py :
+api.gdeltproject.org, services9.arcgis.com, gamma-api.polymarket.com,
+www.federalregister.gov, earthquake.usgs.gov. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
 OpenBB ou le réseau manque, revenir aux captures de l'utilisateur.
 
 Autres options de plan.py : `--r 1.5`, `--max-risk 80`, `--max-contracts 5`,
