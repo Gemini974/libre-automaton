@@ -37,7 +37,9 @@ Données de marché avec OpenBB (fournisseur yfinance, gratuit, futures
 retardés de 10 à 20 minutes ; TopstepX reste la référence pour les ordres) :
 
 ```bash
-pip install openbb-core openbb-yfinance openbb-equity openbb-crypto   # une fois par machine
+# OpenBB est installé dans /opt/openbb par le script de l'environnement ; sinon :
+# python3 -m venv /opt/openbb && /opt/openbb/bin/pip install openbb-core openbb-yfinance openbb-equity openbb-crypto matplotlib
+# Lancer market.py avec /opt/openbb/bin/python (crypto.py, geo.py, av.py et plan.py tournent avec python3).
 python3 "${CLAUDE_SKILL_DIR}/market.py" levels MBT                   # dernier, haut/bas du jour, de la veille, 5 jours, ATR 15m
 python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'ouverture + déclenchement, commande plan.py prête
 python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
