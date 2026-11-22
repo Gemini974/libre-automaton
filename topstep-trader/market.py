@@ -37,7 +37,9 @@ def bars(sym, interval="15m", days=5):
     else:
         df = obb.equity.price.historical(y, provider="yfinance", interval=interval, start_date=start).to_df()
         tz = NY
-    idx = df.index if getattr(df.index, "tz", None) else df.index.tz_localize(tz)
+    import pandas as pd
+    idx = pd.DatetimeIndex(pd.to_datetime(df.index))  # daily bars come back as plain dates
+    idx = idx if idx.tz else idx.tz_localize(tz)
     df.index = idx.tz_convert(LOCAL)
     return y, df
 
