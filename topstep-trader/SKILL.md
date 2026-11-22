@@ -59,6 +59,18 @@ python3 "${CLAUDE_SKILL_DIR}/crypto.py" sentiment    # Fear & Greed, liquidation
 python3 "${CLAUDE_SKILL_DIR}/crypto.py" flows        # achats et ventes des ETF et entreprises, 7 jours (CorpStacking)
 ```
 
+Sentiment des actualités et macro américaine (Alpha Vantage, clé gratuite, 25
+requêtes par jour, réponses gardées 6 h en cache) :
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/av.py" news btc     # sentiment des dernières actualités sur le BTC (aussi : eth, macro, energy, fx)
+python3 "${CLAUDE_SKILL_DIR}/av.py" macro        # inflation, taux de la Fed, taux 2 et 10 ans, chômage (5 requêtes)
+```
+
+La clé se lit dans la variable ALPHAVANTAGE_API_KEY, que l'utilisateur ajoute
+lui-même dans les réglages de l'environnement. Ne jamais la demander dans la
+conversation. Sans clé, le script le dit et s'arrête.
+
 Géopolitique, trafic maritime et probabilités d'événements (API publiques, sans clé) :
 
 ```bash
@@ -87,7 +99,7 @@ Réseau requis : query1.finance.yahoo.com, query2.finance.yahoo.com,
 fc.yahoo.com ; pour crypto.py : api.coinpaprika.com, stablecoins.llama.fi, mempool.space,
 swiftedge.uk, marginpad.io, www.corpstacking.com ; pour geo.py :
 api.gdeltproject.org, services9.arcgis.com, gamma-api.polymarket.com,
-www.federalregister.gov, earthquake.usgs.gov. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
+www.federalregister.gov, earthquake.usgs.gov ; pour av.py : www.alphavantage.co. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
 OpenBB ou le réseau manque, revenir aux captures de l'utilisateur.
 
 Autres options de plan.py : `--r 1.5`, `--max-risk 80`, `--max-contracts 5`,
