@@ -21,7 +21,7 @@ UTC = ZoneInfo("UTC")
 # Topstep symbol -> Yahoo symbol (micro and full contracts quote the same price)
 YAHOO = {
     "MNQ": "NQ=F", "NQ": "NQ=F", "MES": "ES=F", "ES": "ES=F", "MYM": "YM=F",
-    "M2K": "RTY=F", "MGC": "GC=F", "GC": "GC=F", "SIL": "SI=F", "MCL": "CL=F",
+    "M2K": "RTY=F", "MGC": "GC=F", "GC": "GC=F", "SIL": "SI=F", "MCL": "CL=F", "M6A": "6A=F", "M6B": "6B=F", "MHG": "HG=F", "ZN": "ZN=F", "6J": "6J=F",
     "CL": "CL=F", "M6E": "6E=F", "MBT": "BTC=F", "MET": "ETH=F", "BTC": "BTC-USD",
 }
 SESSION_KEYS = {"asia": 0, "london": 1, "comex": 2, "nymex": 3, "ny": 4}
