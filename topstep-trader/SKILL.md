@@ -43,8 +43,31 @@ python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'o
 python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
 ```
 
+python3 "${CLAUDE_SKILL_DIR}/market.py" macro                       # taux 10 et 5 ans, dollar, VIX, yen, ZN
+```
+
+Contexte crypto et positionnement (API publiques gratuites, sans clé, bibliothèque
+standard seulement) :
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/crypto.py" all          # tout ce qui suit, d'un coup
+python3 "${CLAUDE_SKILL_DIR}/crypto.py" onchain      # stablecoins (DefiLlama), difficulté, puissance, frais (Mempool)
+python3 "${CLAUDE_SKILL_DIR}/crypto.py" derivs btc   # financement, positions ouvertes, amas de liquidations, murs d'ordres (Swiftedge)
+                                                     # aussi : eth, gold, us500, us100, oil, silver
+python3 "${CLAUDE_SKILL_DIR}/crypto.py" sentiment    # Fear & Greed, liquidations 24 h, comptes acheteurs/vendeurs (MarginPad)
+python3 "${CLAUDE_SKILL_DIR}/crypto.py" flows        # achats et ventes des ETF et entreprises, 7 jours (CorpStacking)
+```
+
+Comment s'en servir : les amas de liquidations et les murs d'ordres servent
+d'aimants et de résistances pour placer entrées et objectifs ; un financement
+négatif avec beaucoup de vendeurs au-dessus du prix annonce un risque de
+rachat brutal ; des stablecoins en baisse et des ventes d'ETF confirment un
+biais vendeur de fond. Citer la source de chaque chiffre : ce sont des données
+de tiers, parfois sur d'autres plateformes que le CME.
+
 Réseau requis : query1.finance.yahoo.com, query2.finance.yahoo.com,
-fc.yahoo.com. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
+fc.yahoo.com ; pour crypto.py : stablecoins.llama.fi, mempool.space,
+swiftedge.uk, marginpad.io, www.corpstacking.com. Sessions : `asia`, `london`, `comex`, `nymex`, `ny`. Si
 OpenBB ou le réseau manque, revenir aux captures de l'utilisateur.
 
 Autres options de plan.py : `--r 1.5`, `--max-risk 80`, `--max-contracts 5`,

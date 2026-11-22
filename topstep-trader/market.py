@@ -5,6 +5,7 @@ for futures). Prints levels in Reunion time for plan.py.
   python3 market.py levels MBT            # last, previous day H/L, today's H/L, ATR(14) 15m
   python3 market.py orb MNQ --session ny  # opening range of a session (asia, london, comex, nymex, ny)
   python3 market.py spread                # MBT vs BTC spot
+  python3 market.py macro                 # taux US, dollar, VIX, yen, obligations
 
 Needs: pip install openbb-core openbb-yfinance openbb-equity openbb-crypto
 and network access to query1/query2.finance.yahoo.com and fc.yahoo.com.
@@ -118,6 +119,24 @@ def cmd_spread(a):
     print(f"  Dernière : MBT {r.close_mbt:.0f}  spot {r.close_spot:.0f}  ({r.close_mbt - r.close_spot:+.0f}). Vérifier dans TopstepX avant d'entrer.")
 
 
+MACRO = [("Taux US 10 ans (%)", "^TNX"), ("Taux US 5 ans (%)", "^FVX"), ("Dollar (DXY)", "DX-Y.NYB"),
+         ("VIX (peur actions)", "^VIX"), ("Yen (6J)", "6J=F"), ("Obligation 10 ans (ZN)", "ZN=F")]
+
+
+def cmd_macro(a):
+    from openbb import obb
+    start = (datetime.now(UTC) - timedelta(days=12)).date().isoformat()
+    print("MACRO (clôtures journalières, Yahoo via OpenBB)")
+    for name, y in MACRO:
+        try:
+            df = obb.equity.price.historical(y, provider="yfinance", interval="1d", start_date=start).to_df()
+            c = df.close
+            print(f"  {name:24s} {c.iloc[-1]:10.4g}   1 j {100 * (c.iloc[-1] / c.iloc[-2] - 1):+5.1f} %   5 j {100 * (c.iloc[-1] / c.iloc[-6] - 1):+5.1f} %")
+        except Exception as e:
+            print(f"  {name:24s} indisponible ({type(e).__name__})")
+    print("  Lecture : taux et dollar en hausse pèsent sur le BTC et l'or ; VIX, yen et ZN en hausse = fuite du risque.")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -128,8 +147,9 @@ def main():
     o.add_argument("--session", choices=list(SESSION_KEYS), default="ny")
     o.add_argument("--date")
     sub.add_parser("spread")
+    sub.add_parser("macro")
     a = p.parse_args()
-    {"levels": cmd_levels, "orb": cmd_orb, "spread": cmd_spread}[a.cmd](a)
+    {"levels": cmd_levels, "orb": cmd_orb, "spread": cmd_spread, "macro": cmd_macro}[a.cmd](a)
 
 
 if __name__ == "__main__":
