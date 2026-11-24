@@ -16,6 +16,7 @@ from datetime import time
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from market import NY, atr, bars  # noqa: E402
@@ -59,8 +60,14 @@ def structure(df, n):
     return trend, event, hs, ls, labels
 
 
-def ema(s, n):
-    return s.ewm(span=n, adjust=False).mean()
+def wma(s, n):
+    w = np.arange(1, n + 1)
+    return s.rolling(n).apply(lambda x: (x * w).sum() / w.sum(), raw=True)
+
+
+def hma(s, n=21):
+    """Moyenne mobile de Hull : donne la tendance (pente), pas un signal d'entrée."""
+    return wma(2 * wma(s, n // 2) - wma(s, n), int(np.sqrt(n)))
 
 
 def window(df, a, b):
@@ -96,25 +103,26 @@ def main():
     last = m15.close.iloc[-1]
     a15, ah1 = atr(m15), atr(h1)
 
-    # 1. Structure par unité de temps
     print(f"{sym} ({y})  dernier {last:.2f}  à {m15.index[-1]:%d/%m %H:%M} (La Réunion, données retardées)")
-    print(f"ATR M15 {a15:.2f}  ATR H1 {ah1:.2f}\n\nSTRUCTURE")
-    score, reasons = 0, []
-    names = {1: "haussière (HH + HL)", -1: "baissière (LH + LL)", 0: "range / mixte"}
-    st = {}
+    print(f"ATR M15 {a15:.2f}  ATR H1 {ah1:.2f}")
+
+    # 1. TENDANCE : pente de la HMA 21 (la structure HH/HL sert de contexte)
+    print("\n1. TENDANCE (pente HMA 21 ; structure en contexte)")
+    names = {1: "HH + HL", -1: "LH + LL", 0: "mixte"}
+    st, slope = {}, {}
     for lab, df, n in (("Daily", d1.iloc[:-1], 3), ("H4", h4, 3), ("H1", h1, 4)):
         tr, ev, hs, ls, labels = structure(df, n)
         st[lab] = (tr, hs, ls, labels)
-        e20, e50 = ema(df.close, 20).iloc[-1], ema(df.close, 50).iloc[-1]
-        side = "au-dessus" if df.close.iloc[-1] > e20 > e50 else "sous" if df.close.iloc[-1] < e20 < e50 else "entre"
-        sh = f"{hs[-1][1]:.2f}" if hs else "-"
-        sl = f"{ls[-1][1]:.2f}" if ls else "-"
-        print(f"  {lab:6s} {names[tr]:22s} dernier sommet {sh}  dernier creux {sl}  prix {side} EMA20/50  {ev}")
-        if lab in ("Daily", "H4"):
-            score += tr + (1 if side == "au-dessus" else -1 if side == "sous" else 0)
-            reasons.append(f"{lab} {names[tr]}, prix {side} EMA20/50")
+        h = hma(df.close, 21)
+        slope[lab] = 1 if h.iloc[-1] > h.iloc[-2] else -1
+        print(f"  {lab:6s} HMA 21 {'monte  ' if slope[lab] > 0 else 'descend'}  prix {'au-dessus' if df.close.iloc[-1] > h.iloc[-1] else 'sous'} ({h.iloc[-1]:.2f})"
+              f"  structure {names[tr]}  {ev}")
+    trend = slope["H1"] if slope["H1"] == slope["H4"] else 0
+    ttxt = {1: "HAUSSIÈRE (H4 et H1 d'accord)", -1: "BAISSIÈRE (H4 et H1 d'accord)",
+            0: f"MIXTE (H4 {'monte' if slope['H4'] > 0 else 'descend'}, H1 {'monte' if slope['H1'] > 0 else 'descend'})"}[trend]
+    print(f"  => tendance {ttxt}. Testé sur l'or : trader contre la pente HMA H1 a perdu (-0,17 R par trade).")
 
-    # 2. Niveaux de liquidité
+    # niveaux de la journée
     nyt = m15.index.tz_convert(NY)
     cday = (nyt + pd.Timedelta(hours=6)).date  # journée CME : 18h NY la veille -> 17h
     cur = m15[cday == cday[-1]]
@@ -125,18 +133,81 @@ def main():
     lon = window(cur, time(2), time(5))
     mo_bar = window(cur, time(0), time(0, 15))
     mo = mo_bar.open.iloc[0] if len(mo_bar) else None
-    lv = {"Veille haut": prev.high, "Veille bas": prev.low, "Veille clôture": prev.close,
-          "Jour haut": cur.high.max(), "Jour bas": cur.low.min(),
-          "20 j haut": d1.high.iloc[-21:-1].max(), "20 j bas": d1.low.iloc[-21:-1].min()}
+
+    # 2. OÙ EST LE PRIX : range de travail H1 (dernier sommet et dernier creux), premium ou discount
+    _, hs, ls, _ = st["H1"]
+    rh, rl = hs[-1][1], ls[-1][1]
+    rh, rl = max(rh, cur.high.max()), min(rl, cur.low.min())
+    pos = (last - rl) / (rh - rl) if rh > rl else 0.5
+    zone = "PREMIUM (cher)" if pos > 0.55 else "DISCOUNT (bon marché)" if pos < 0.45 else "ÉQUILIBRE"
+    print(f"\n2. OÙ EST LE PRIX\n  Range de travail H1 {rl:.2f} - {rh:.2f}, équilibre {(rh + rl) / 2:.2f} : prix à {pos*100:.0f} % => {zone}")
+    if mo:
+        print(f"  {'Au-dessus' if last > mo else 'Sous'} l'ouverture de minuit {mo:.2f}")
+    p20h, p20l = d1.high.iloc[-21:-1].max(), d1.low.iloc[-21:-1].min()
+    print(f"  Plage de 20 jours {p20l:.2f} - {p20h:.2f} : {(last - p20l) / (p20h - p20l) * 100:.0f} %")
+
+    # 3. PHASE : accumulation, retracement, expansion, distribution (H1, 12 dernières bougies)
+    c = h1.close
+    w = c.iloc[-13:]
+    move = w.iloc[-1] - w.iloc[0]
+    er = abs(move) / w.diff().abs().sum()
+    rng = (h1.high.iloc[-12:].max() - h1.low.iloc[-12:].min()) / ah1
+    prior = c.iloc[-13] - c.iloc[-37]
+    last6 = c.iloc[-1] - c.iloc[-7]
+    if er >= 0.5 and abs(move) >= 2 * ah1:
+        phase = f"EXPANSION {'haussière' if move > 0 else 'baissière'}"
+        pnote = "ne pas courir après le prix : attendre le retracement"
+    elif trend and np.sign(last6) == -trend and 0.25 <= ((rh - last) if trend > 0 else (last - rl)) / (rh - rl) <= 0.85:
+        phase = "RETRACEMENT " + ("d'une hausse" if trend > 0 else "d'une baisse")
+        pnote = f"zone d'entrée dans le sens de la tendance quand le prix est en {'discount' if trend > 0 else 'premium'}"
+    elif er < 0.35 and rng <= 4:
+        if prior < 0 or pos < 0.5:
+            phase, pnote = "ACCUMULATION (range après une baisse)", "attendre la sortie du range (Wyckoff : plutôt par le haut, non testé) ou le balayage du bas"
+        else:
+            phase, pnote = "DISTRIBUTION (range après une hausse)", "attendre la sortie du range (Wyckoff : plutôt par le bas, non testé) ou le balayage du haut"
+    else:
+        phase, pnote = "TRANSITION (pas de phase nette)", "réduire la taille ou attendre"
+    print(f"\n3. PHASE : {phase}\n  efficacité du mouvement {er:.2f}, amplitude {rng:.1f} ATR H1 sur 12 h ; {pnote}")
+
+    # 4. LIQUIDITÉ : sommets et creux non pris (stops au-dessus et en dessous), sommets ou creux égaux
+    print("\n4. LIQUIDITÉ")
+    swh = [s for s in swings(h1.iloc[-120:], 3) if s[2] == "H"]
+    swl = [s for s in swings(h1.iloc[-120:], 3) if s[2] == "L"]
+    pools = {"Veille haut": prev.high, "Veille bas": prev.low}
     if len(asia):
-        lv.update({"Asie haut": asia.high.max(), "Asie bas": asia.low.min()})
+        pools.update({"Asie haut": asia.high.max(), "Asie bas": asia.low.min()})
     if len(lon):
-        lv.update({"Londres haut": lon.high.max(), "Londres bas": lon.low.min()})
+        pools.update({"Londres haut": lon.high.max(), "Londres bas": lon.low.min()})
+    for t, px, k in swh + swl:
+        after = h1[h1.index > t]
+        taken = (after.high.max() > px) if k == "H" else (after.low.min() < px)
+        if not taken:
+            pools[f"Swing H1 {'haut' if k == 'H' else 'bas'} {t:%d/%m %Hh} non pris"] = px
+    for grp, k in ((swh, "hauts"), (swl, "bas")):
+        for (t1, p1, _), (t2, p2, _) in zip(grp, grp[1:]):
+            after = h1[h1.index > t2]
+            untaken = after.high.max() <= max(p1, p2) if k == "hauts" else after.low.min() >= min(p1, p2)
+            if abs(p1 - p2) <= 0.15 * ah1 and untaken:
+                pools[f"{k.capitalize()} égaux {t1:%d/%m %Hh}-{t2:%d/%m %Hh}"] = max(p1, p2) if k == "hauts" else min(p1, p2)
+    is_hi = lambda n: "haut" in n.lower()
+    bsl = sorted([(n, p) for n, p in pools.items() if p > last and is_hi(n)], key=lambda x: x[1])
+    ssl = sorted([(n, p) for n, p in pools.items() if p < last and not is_hi(n)], key=lambda x: -x[1])
+    today_hi, today_lo = cur.high.max(), cur.low.min()
+    for n, p in pools.items():
+        if "Veille" in n and ((p == prev.high and today_hi > p) or (p == prev.low and today_lo < p)):
+            print(f"  déjà prise aujourd'hui : {n} {p:.2f}")
+    print("  Au-dessus (liquidité acheteuse, stops des vendeurs) : " + ", ".join(f"{p:.2f} {n}" for n, p in bsl[:4]))
+    print("  En dessous (liquidité vendeuse, stops des acheteurs) : " + ", ".join(f"{p:.2f} {n}" for n, p in ssl[:4]))
+    draw_on = (bsl[0] if trend > 0 and bsl else ssl[0] if trend < 0 and ssl else None)
+    if draw_on:
+        print(f"  Cible probable dans le sens de la tendance : {draw_on[1]:.2f} ({draw_on[0]})")
+    bias = trend
+
+    # niveaux pour les setups : liquidité + ouverture de minuit + jour
+    lv = dict(pools)
+    lv.update({"Jour haut": today_hi, "Jour bas": today_lo})
     if mo:
         lv["Ouverture minuit NY"] = mo
-    for t, px, kind in st["H1"][1][-2:] + st["H1"][2][-2:]:
-        lv[f"Swing H1 {'haut' if kind == 'H' else 'bas'} {t:%d/%m %Hh}"] = px
-    # fusion des niveaux proches (moins de 0,3 ATR M15)
     merged = []
     for name, px in sorted(lv.items(), key=lambda x: x[1]):
         if merged and px - merged[-1][1] < 0.3 * a15:
@@ -145,25 +216,8 @@ def main():
             merged.append((name, px))
     above = [x for x in merged if x[1] > last + 0.2 * a15]
     below = [x for x in merged if x[1] < last - 0.2 * a15][::-1]
-    print("\nNIVEAUX (du plus haut au plus bas)")
-    for name, px in merged[::-1]:
-        mark = "  <- prix" if abs(px - last) <= 0.2 * a15 else ""
-        print(f"  {px:10.2f}  {name}{mark}")
 
-    # 3. Biais
-    if mo:
-        moside = 1 if last > mo else -1
-        reasons.append(f"prix {'au-dessus de' if moside > 0 else 'sous'} l'ouverture de minuit ({mo:.2f}), repère testé : 55 % sur 2 ans")
-        score += moside
-    pos = (last - lv["20 j bas"]) / (lv["20 j haut"] - lv["20 j bas"])
-    bias = 1 if score >= 2 else -1 if score <= -2 else 0
-    btxt = {1: "ACHAT prioritaire", -1: "VENTE prioritaire", 0: "NEUTRE : jouer les bornes du range"}[bias]
-    print(f"\nBIAIS DU JOUR : {btxt}  (score {score:+d} sur ±5)")
-    for r in reasons:
-        print(f"  - {r}")
-    print(f"  - position dans la plage de 20 jours : {pos*100:.0f} % (information, pas un signal)")
-
-    # 4. Setups : retour sur niveau et cassure-retest, stop >= 1,5 ATR M15
+    # 5. Setups : seulement dans le sens de la tendance HMA ; mieux placés en discount (achat) ou premium (vente)
     cand = []
     sbuf = max(1.5 * a15, MIN_STOP_TICKS.get(sym, 10) * tick)
 
@@ -174,9 +228,10 @@ def main():
             if rr >= 1.5:
                 if j:
                     cond += " ; obstacles avant l'objectif : " + ", ".join(f"{x[1]:.2f}" for x in targets[:j]) + " (sortie partielle possible)"
-                sc = (2 if side == ("long" if bias > 0 else "short" if bias < 0 else "") else 0) + (1 if rr >= 2 else 0)
-                if bias == 0 and kind.startswith("Rejet"):
-                    sc += 1
+                d = 1 if side == "long" else -1
+                epos = (entry - rl) / (rh - rl) if rh > rl else 0.5
+                sc = (2 if d == bias else 0) + (1 if rr >= 2 else 0) + (1 if (d > 0 and epos < 0.5) or (d < 0 and epos > 0.5) else 0)
+                sc += 1 if "RETRACEMENT" in phase and d == bias else 0
                 cand.append((sc, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                              round(tg / tick) * tick, tname, rr, cond))
                 return
@@ -194,8 +249,10 @@ def main():
     if below:
         add("Cassure-retest", "short", s1[1], s1[1] + sbuf, below[1:4],
             f"clôture H1 sous {s1[1]:.2f} conforme à la checklist, puis retour sur le niveau")
+    against = [c for c in cand if bias and (1 if c[2] == "long" else -1) != bias]
+    cand = [c for c in cand if c not in against]
     cand.sort(key=lambda c: (-c[0], -c[7]))
-    print("\nSETUPS CLASSÉS (fenêtre 17h20-19h30 ; entrée seulement après la confirmation)")
+    print("\n5. SETUPS DANS LE SENS DE LA TENDANCE (fenêtre 17h20-19h30 ; entrée seulement après la confirmation)")
     for k, (sc, kind, side, e, s, t, tname, rr, cond) in enumerate(cand, 1):
         br, size, verdict = run_plan(sym, side, e, s, t, a)
         print(f"{k}. {kind} {'ACHAT' if side == 'long' else 'VENTE'}  score {sc}  entrée {e:.2f}  stop {s:.2f}  objectif {t:.2f} ({tname})  R {rr:.1f}")
@@ -204,6 +261,8 @@ def main():
         print(f"   {verdict}")
     if not cand:
         print("  aucun setup avec un rendement/risque d'au moins 1,5 : attendre")
+    if against:
+        print("  Écartés car contre la tendance HMA : " + ", ".join(f"{c[1]} {'achat' if c[2] == 'long' else 'vente'} {c[3]:.2f}" for c in against))
 
     if a.chart:
         draw(a.chart, sym, m15, merged, st["H1"][3], cand, last)

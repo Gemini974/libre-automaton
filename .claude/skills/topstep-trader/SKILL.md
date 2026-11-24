@@ -208,25 +208,31 @@ la semaine.
 
 ## Structure et biais daily (`structure.py`)
 
-L'outil décrit le marché, il ne prédit pas la direction.
+L'outil suit la méthode d'analyse de l'utilisateur, dans cet ordre. Il décrit
+le marché, il ne prédit pas la direction.
 
-1. **Structure** par unité (Daily, H4, H1) : sommets et creux confirmés
-   (fractales), HH/HL = haussière, LH/LL = baissière, sinon range ; dernière
-   cassure de structure (BOS dans le sens de la tendance, CHoCH contre elle) ;
-   prix par rapport aux EMA20/50.
-2. **Niveaux de liquidité** : veille (haut, bas, clôture), jour, Asie (3h-9h),
-   Londres (11h-14h), ouverture de minuit New York (9h en hiver), plage de 20
-   jours, derniers swings H1. Les niveaux à moins de 0,3 ATR M15 sont fusionnés.
-3. **Biais** : score de -5 à +5 (structure et EMA du Daily et du H4, côté de
-   l'ouverture de minuit). +2 ou plus : achat prioritaire ; -2 ou moins :
-   vente prioritaire ; sinon jouer les bornes du range.
-4. **Setups** : rejet sur le niveau le plus proche et cassure-retest, stop à
-   1,5 ATR M15 au-delà du niveau, objectif au prochain niveau donnant au moins
-   1,5R. Classés par accord avec le biais puis par R, chacun passé par
-   `plan.py`. Entrée seulement après la condition (bougie de rejet, ou
-   clôture H1 conforme à la checklist puis retour sur le niveau).
-5. `--chart` : PNG M15 sur 36 h (niveaux, HH/HL/LH/LL, deux meilleurs setups)
-   à envoyer à l'utilisateur.
+1. **Tendance** : pente de la HMA 21 en Daily, H4 et H1 (la HMA donne
+   uniquement la tendance, pas l'entrée). Tendance retenue quand H4 et H1
+   sont d'accord, sinon mixte. Structure HH/HL ou LH/LL et dernière cassure
+   (BOS, CHoCH) en contexte. Testé sur l'or : les setups contre la pente HMA
+   H1 ont perdu -0,17 R par trade, ils sont écartés.
+2. **Où est le prix** : range de travail H1 (dernier sommet, dernier creux),
+   premium au-dessus de 55 %, discount sous 45 %, équilibre entre les deux ;
+   côté de l'ouverture de minuit ; position dans la plage de 20 jours.
+3. **Phase** (H1, 12 dernières bougies) : expansion (mouvement efficace d'au
+   moins 2 ATR), retracement (contre la tendance, entre 25 et 85 % de la
+   jambe), accumulation (range après une baisse) ou distribution (range après
+   une hausse), sinon transition. En expansion : ne pas courir après le prix.
+4. **Liquidité** : sommets et creux H1 non pris, sommets ou creux égaux,
+   veille, Asie (3h-9h), Londres (11h-14h) ; au-dessus = stops des vendeurs,
+   en dessous = stops des acheteurs ; ce qui a déjà été pris aujourd'hui ;
+   cible probable dans le sens de la tendance.
+5. **Setups** dans le sens de la tendance : rejet sur un niveau ou
+   cassure-retest, stop à 1,5 ATR M15 au-delà du niveau (130 ticks minimum
+   sur MBT), objectif sur la liquidité suivante à au moins 1,5R. Bonus si
+   l'achat se fait en discount ou la vente en premium, et en phase de
+   retracement. Chacun passe par `plan.py` (risque max 160 $ par défaut : au
+   backtest, les stops plus larges ont coûté le plus). `--chart` : PNG M15.
 
 **Lire une capture de l'utilisateur** : calibrer l'échelle avec deux prix de
 l'axe (pixels par point) avant de lire un niveau ; repérer les derniers
