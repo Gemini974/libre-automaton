@@ -297,7 +297,8 @@ range, distance du prix à chaque niveau, taille d'une bougie et de ses
 mèches, stop et objectif (MGC : 1 tick = 0,10 $ de prix = 1 $ ; MBT : 1 tick
 = 5 $ de prix = 0,50 $). `structure.py` et `candles.py` affichent les ticks.
 
-Graphiques en ticks (bougie de N transactions, comme la 500T de l'or) :
+Graphiques en ticks : seulement si l'utilisateur le demande. **Par défaut,
+l'analyse se fait en bougies de temps (M15, H1, H4, Daily).** Outils :
 - `ticks.py volume` : bougies d'activité, chacune se ferme quand le même
   nombre de contrats a été échangé (volume 1 minute du contrat standard
   sur Yahoo, 7 jours, retard d'environ 10 minutes). Le plus proche des
