@@ -113,41 +113,13 @@ def main():
     dt_ = lambda px: f"{'+' if px >= last else '-'}{tk(abs(px - last))} ticks"
     print(f"Tick {tick} = {SPECS.get(sym, (0, 0))[1]:.2f} $ ; ATR M15 {a15:.2f} ({tk(a15)} ticks)  ATR H1 {ah1:.2f} ({tk(ah1)} ticks)")
 
-    # 0. BIAIS DU JOUR = technique (EMA 20 / EMA 50 Daily, jours terminés) ET fondamental d'accord
-    dc = d1.close.iloc[:-1]
-    e20, e50 = ema(dc, 20).iloc[-1], ema(dc, 50).iloc[-1]
-    tech = 1 if e20 > e50 else -1
-    print(f"\n0. BIAIS DU JOUR")
-    print(f"  Technique : EMA 20 Daily {e20:.2f} {'>' if tech > 0 else '<'} EMA 50 Daily {e50:.2f} => {'HAUSSIER' if tech > 0 else 'BAISSIER'}"
-          "  (test : +0,11 R par trade avec le biais, -0,12 R contre)")
-    votes = []
+    # 0. BIAIS DU JOUR = technique (EMA 20 / EMA 50 Daily, jours terminés) ET fondamental d'accord (bias.py)
+    from bias import daily_bias
+    print("\n0. BIAIS DU JOUR")
+    day_bias, tech, fund, blines, btxt = daily_bias(sym, d1)
+    for ln in blines:
+        print("  " + ln)
     crypto = sym in ("MBT", "MET", "BTC")
-    fund_src = ([("NQ=F", 1, "Nasdaq"), ("DX-Y.NYB", -1, "Dollar (DXY)"), ("^VIX", -1, "VIX")] if crypto else
-                [("DX-Y.NYB", -1, "Dollar (DXY)"), ("^TNX", -1, "Taux US 10 ans"), ("^VIX", 1, "VIX")])
-    for ysym, sign, lab in fund_src:
-        try:
-            _, fd = bars(ysym, "1d", 120)
-            fc = fd.close.iloc[:-1] if len(fd) > 60 else fd.close
-            if ysym == "^VIX":
-                up = fc.iloc[-1] > fc.rolling(50).mean().iloc[-1]
-                txt = f"{fc.iloc[-1]:.1f} {'au-dessus' if up else 'sous'} sa moyenne 50 j"
-            else:
-                up = ema(fc, 20).iloc[-1] > ema(fc, 50).iloc[-1]
-                txt = f"{'en hausse' if up else 'en baisse'} (EMA 20 {'>' if up else '<'} EMA 50)"
-            v = sign * (1 if up else -1)
-            votes.append(v)
-            print(f"  Fondamental : {lab:15s} {txt} => {'haussier' if v > 0 else 'baissier'} pour {sym}")
-        except Exception as ex:
-            print(f"  Fondamental : {lab} indisponible ({ex.__class__.__name__})")
-    fsum = sum(votes)
-    fund = 1 if fsum > 0 else -1 if fsum < 0 else 0
-    if fund == 0:
-        day_bias, btxt = 0, "PAS DE TRADE : fondamental partagé"
-    elif fund == tech:
-        day_bias, btxt = tech, ("ACHATS SEULEMENT" if tech > 0 else "VENTES SEULEMENT") + " (technique et fondamental d'accord)"
-    else:
-        day_bias, btxt = 0, "PAS DE TRADE : technique et fondamental en désaccord"
-    print(f"  => {btxt}")
     print("  Test sur 26 ans (or) et 9 ans (BTC) : les filtres fondamentaux de tendance n'ont pas amélioré le biais ;"
           " la règle d'accord est celle de l'utilisateur. Vérifier aussi le calendrier du jour (av.py macro, geo.py news,"
           + (" crypto.py flows" if crypto else " market.py macro") + ") : pas d'entrée 15 min avant ou après une annonce majeure.")
@@ -384,15 +356,19 @@ def main():
         or_end = orb.index[-1] + pd.Timedelta(minutes=5)
         aft = m15[(m15.index >= or_end.floor("15min")) & (m15.index.date == orb.index[-1].date())]
         aft = aft.iloc[:-1] if len(aft) else aft  # la dernière bougie M15 peut être en cours
-        for nm, cond_ in (("au-dessus du haut", aft.close > oh), ("sous le bas", aft.close < ol)):
+        done_sides = set()
+        for nm, cond_, sd in (("au-dessus du haut", aft.close > oh, "long"), ("sous le bas", aft.close < ol, "short")):
             if cond_.any():
+                done_sides.add(sd)
                 t0 = aft.index[cond_.values.argmax()]
                 print(f"  Déjà déclenché : première clôture M15 {nm} à {t0 + pd.Timedelta(minutes=15):%H:%M} ({aft.close[t0]:.2f}). "
                       "Si le trade n'a pas été pris, ne pas courir après : attendre le retour sur le niveau ou passer.")
-        add("Range d'ouverture M15", "long", oh, oh - r15, [("2R", oh + 2 * r15)] + [x for x in above if x[1] > oh + 1.5 * r15],
+        if "long" not in done_sides:
+          add("Range d'ouverture M15", "long", oh, oh - r15, [("2R", oh + 2 * r15)] + [x for x in above if x[1] > oh + 1.5 * r15],
             f"PREMIÈRE bougie M15 qui clôture au-dessus de {oh:.2f} après {or_txt} + 15 min ; entrée à cette clôture, stop 1 ATR M15 ;"
             " objectif 2R ou tenir jusqu'à 1h (au plus tard 1h10)")
-        add("Range d'ouverture M15", "short", ol, ol + r15, [("2R", ol - 2 * r15)] + [x for x in below if x[1] < ol - 1.5 * r15],
+        if "short" not in done_sides:
+          add("Range d'ouverture M15", "short", ol, ol + r15, [("2R", ol - 2 * r15)] + [x for x in below if x[1] < ol - 1.5 * r15],
             f"PREMIÈRE bougie M15 qui clôture sous {ol:.2f} après {or_txt} + 15 min ; entrée à cette clôture, stop 1 ATR M15 ;"
             " objectif 2R ou tenir jusqu'à 1h (au plus tard 1h10)")
     else:
@@ -428,6 +404,12 @@ def main():
         for ln in lines:
             print(f"   {ln}")
         print(f"   {size} | {pv}")
+        if verdict.startswith("CONFIRMÉ") and shown <= 2:
+            tm = subprocess.run(["/opt/openbb/bin/python", str(HERE / "timemachine.py"), sym, "--side", side, "--entry", f"{e}",
+                                 "--stop", f"{s}", "--target", f"{t}", "--replays", "3000"], capture_output=True, text=True).stdout
+            odds = [x.strip() for x in tm.splitlines() if x.strip().startswith(("objectif d'abord", "Verdict"))]
+            if odds:
+                print("   Machine à remonter le temps : " + " | ".join(odds))
     if not shown:
         print("  aucun setup confirmé : attendre")
     bad = [c for c in cand if c[0] >= 3]

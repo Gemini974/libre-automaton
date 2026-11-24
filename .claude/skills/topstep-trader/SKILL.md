@@ -43,6 +43,9 @@ retardés de 10 à 20 minutes ; TopstepX reste la référence pour les ordres) :
 python3 "${CLAUDE_SKILL_DIR}/market.py" levels MBT                   # dernier, haut/bas du jour, de la veille, 5 jours, ATR 15m
 python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'ouverture + déclenchement, commande plan.py prête
 python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
+python3 "${CLAUDE_SKILL_DIR}/scan.py"                                 # scanner : quels contrats trader aujourd'hui selon la méthode
+python3 "${CLAUDE_SKILL_DIR}/bias.py" MGC                             # biais du jour : EMA 20/50 Daily + accord fondamental
+python3 "${CLAUDE_SKILL_DIR}/timemachine.py" MGC --side short --entry 3601 --stop 3615 --target 3566 --at 20:30   # chances du plan
 python3 "${CLAUDE_SKILL_DIR}/structure.py" MGC --chart /tmp/mgc.png  # tendance, position, phase, liquidité, bougies, setups confirmés + PNG
 python3 "${CLAUDE_SKILL_DIR}/candles.py" MGC                         # lecture des 6 dernières bougies M15 et H1, figures, Heikin-Ashi
 python3 "${CLAUDE_SKILL_DIR}/ticks.py" volume MGC --chart /tmp/v.png   # bougies d'activité (même nombre de contrats), proches des bougies en ticks
@@ -208,6 +211,21 @@ retour sous le niveau pour jouer l'autre sens.
 Ne discriminent presque pas : la tendance H4 (55 % avec, 52 % contre), le
 nombre de touches du niveau, la compression avant la cassure, le jour de
 la semaine.
+
+## Chaîne complète : day-trader-skill + notre méthode
+
+Dans l'ordre, pour chaque séance (scanner → actualités → entrée → sortie →
+machine à remonter le temps → taille et risque → alertes) :
+
+| Étape day-trader-skill | Ici | Ce qui change pour la méthode |
+|---|---|---|
+| trader-scanner | `scan.py` | contrats Topstep classés par biais du jour (technique + fondamental), HMA H1/H4 d'accord, risque d'un stop de 1 ATR M15 sous le risque max, volume relatif ; écarte les autres avec la raison |
+| trader-news | `av.py`, `geo.py`, `crypto.py`, `market.py macro`, recherche web | fondamental et calendrier : pas d'entrée 15 min avant ou après une annonce majeure |
+| trader-entry | `structure.py` (setup n° 1) | range d'ouverture 15 min, première clôture M15 au-delà dans le sens du biais ; signale un signal déjà passé |
+| trader-exit | `structure.py` + `plan.py` | stop 1 ATR M15 (130 ticks min. sur MBT), objectif 2R ou liquidité, sortie à 1h |
+| trader-timemachine | `timemachine.py` (lancé par `structure.py` sur les 2 meilleurs setups) | 10 000 fins de séance tirées des bougies 5 min des 60 derniers jours + historique réel du même plan, sortie à 1h |
+| trader-budget + trader-risk | `plan.py` | taille en ticks, DLL 1 000 $, plafond de gain 1 400 $, clôture 1h10, annonces |
+| trader-alerts | alertes TradingView sur entrée, stop, objectif ; analyses programmées | rappel 23h30 : plus d'entrée ; 1h00 : à plat |
 
 ## Méthode du jour : biais Daily + entrée M15 / M5 (`structure.py`, section 0 et setup n° 1)
 
