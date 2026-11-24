@@ -24,6 +24,7 @@ from plan import SPECS  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 MIN_STOP_TICKS = {"MBT": 130, "MET": 130}  # amplitude habituelle du soir (CLAUDE.md)
+OR_START = {"MGC": (8, 20), "GC": (8, 20), "MCL": (9, 0), "CL": (9, 0)}  # heure NY ; sinon 9h30
 
 
 def swings(df, n):
@@ -201,7 +202,6 @@ def main():
     draw_on = (bsl[0] if trend > 0 and bsl else ssl[0] if trend < 0 and ssl else None)
     if draw_on:
         print(f"  Cible probable dans le sens de la tendance : {draw_on[1]:.2f} ({draw_on[0]})")
-    bias = trend
 
     # niveaux pour les setups : liquidité + ouverture de minuit + jour
     lv = dict(pools)
@@ -217,52 +217,91 @@ def main():
     above = [x for x in merged if x[1] > last + 0.2 * a15]
     below = [x for x in merged if x[1] < last - 0.2 * a15][::-1]
 
-    # 5. Setups : seulement dans le sens de la tendance HMA ; mieux placés en discount (achat) ou premium (vente)
+    # 5. SETUPS DE BASE (cassure + retest d'un niveau, range d'ouverture), puis les 4 étapes en confirmation
     cand = []
     sbuf = max(1.5 * a15, MIN_STOP_TICKS.get(sym, 10) * tick)
+    hh, mm = OR_START.get(sym, (9, 30))
+    _, m5 = bars(sym, "5m", 2)
+    t5 = m5.index.tz_convert(NY)
+    end = time(hh, mm + 15) if mm + 15 < 60 else time(hh + 1, mm - 45)
+    orb = m5[(t5.date == t5[-1].date()) & (t5.time >= time(hh, mm)) & (t5.time < end)]
+    or_txt = f"{(pd.Timestamp('2000-01-01 ' + f'{hh}:{mm:02d}').tz_localize(NY).tz_convert(m15.index.tz)):%Hh%M}"
+
+    def confirm(side):
+        d = 1 if side == "long" else -1
+        lines = []
+        if trend == d:
+            t_ok = "ok"
+            lines.append("✅ 1. tendance HMA H1 + H4 dans le sens du trade")
+        elif trend == 0:
+            t_ok = "mixte"
+            lines.append("⚠️ 1. tendance mixte (H1 et H4 en désaccord) : au test, pas d'avantage")
+        else:
+            t_ok = "contre"
+            lines.append("❌ 1. contre la tendance HMA : au test, perdant")
+        lines.append(f"ℹ️ 2. prix en {zone.split(' ')[0].lower()} du range H1 (information : non filtrant au test)")
+        if "RETRACEMENT" in phase or "TRANSITION" in phase:
+            ph_ok = False
+            lines.append(f"⚠️ 3. phase {phase.split(' ')[0].lower()} : au test, les entrées pendant un retracement ont perdu")
+        else:
+            ph_ok = True
+            lines.append(f"✅ 3. phase {phase.split(' ')[0].lower()} : favorable à une cassure")
+        return t_ok, ph_ok, lines
 
     def add(kind, side, entry, stop, targets, cond):
         risk = abs(entry - stop)
         for j, (tname, tg) in enumerate(targets):
             rr = abs(tg - entry) / risk
-            if rr >= 1.5:
-                if j:
-                    cond += " ; obstacles avant l'objectif : " + ", ".join(f"{x[1]:.2f}" for x in targets[:j]) + " (sortie partielle possible)"
-                d = 1 if side == "long" else -1
-                epos = (entry - rl) / (rh - rl) if rh > rl else 0.5
-                sc = (2 if d == bias else 0) + (1 if rr >= 2 else 0) + (1 if (d > 0 and epos < 0.5) or (d < 0 and epos > 0.5) else 0)
-                sc += 1 if "RETRACEMENT" in phase and d == bias else 0
-                cand.append((sc, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
-                             round(tg / tick) * tick, tname, rr, cond))
-                return
+            if rr < 1.5:
+                continue
+            if j:
+                cond += " ; obstacles avant l'objectif : " + ", ".join(f"{x[1]:.2f}" for x in targets[:j]) + " (sortie partielle possible)"
+            t_ok, ph_ok, lines = confirm(side)
+            lines.append(f"✅ 4. objectif sur la liquidité : {tg:.2f} ({tname}), {rr:.1f} R")
+            verdict = {"contre": "À ÉVITER", "mixte": "ATTENDRE que H1 et H4 s'accordent"}.get(t_ok) or \
+                ("CONFIRMÉ" if ph_ok else "CONFIRMÉ, taille réduite (phase défavorable)")
+            rank = {"CONFIRMÉ": 0}.get(verdict, 1 if verdict.startswith("CONFIRMÉ") else 2 if t_ok == "mixte" else 3)
+            cand.append((rank, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
+                         round(tg / tick) * tick, tname, rr, cond, lines, verdict))
+            return
 
-    if below:
-        s1 = below[0]
-        add("Rejet sur support", "long", s1[1], s1[1] - sbuf, above[:4],
-            f"bougie M15 de rejet sur {s1[1]:.2f} ({s1[0]}) : mèche basse, clôture au-dessus")
-    if above:
-        r1 = above[0]
-        add("Rejet sur résistance", "short", r1[1], r1[1] + sbuf, below[:4],
-            f"bougie M15 de rejet sur {r1[1]:.2f} ({r1[0]}) : mèche haute, clôture en dessous")
-        add("Cassure-retest", "long", r1[1], r1[1] - sbuf, above[1:4],
-            f"clôture H1 au-dessus de {r1[1]:.2f} conforme à la checklist (corps, volume, RSI), puis retour sur le niveau")
-    if below:
-        add("Cassure-retest", "short", s1[1], s1[1] + sbuf, below[1:4],
-            f"clôture H1 sous {s1[1]:.2f} conforme à la checklist, puis retour sur le niveau")
-    against = [c for c in cand if bias and (1 if c[2] == "long" else -1) != bias]
-    cand = [c for c in cand if c not in against]
-    cand.sort(key=lambda c: (-c[0], -c[7]))
-    print("\n5. SETUPS DANS LE SENS DE LA TENDANCE (fenêtre 17h20-19h30 ; entrée seulement après la confirmation)")
-    for k, (sc, kind, side, e, s, t, tname, rr, cond) in enumerate(cand, 1):
-        br, size, verdict = run_plan(sym, side, e, s, t, a)
-        print(f"{k}. {kind} {'ACHAT' if side == 'long' else 'VENTE'}  score {sc}  entrée {e:.2f}  stop {s:.2f}  objectif {t:.2f} ({tname})  R {rr:.1f}")
+    check = (f"checklist sur la bougie H1 de cassure : clôture franche, corps > {ah1:.2f} (1 ATR H1), volume >= 2x la moyenne, "
+             "RSI > 65 pour un achat ou < 35 pour une vente, heure 17h-19h30 ou 13h")
+    if len(orb) >= 3:
+        oh, ol = orb.high.max(), orb.low.min()
+        print(f"\n  Range d'ouverture {or_txt} (15 min) : {ol:.2f} - {oh:.2f}")
+        add("Range d'ouverture", "long", oh, min((oh + ol) / 2, oh - sbuf),
+            [x for x in above if x[1] > oh], f"clôture M5 ou M15 au-dessus de {oh:.2f} ; {check}")
+        add("Range d'ouverture", "short", ol, max((oh + ol) / 2, ol + sbuf), [x for x in below if x[1] < ol],
+            f"clôture M5 ou M15 sous {ol:.2f} ; {check}")
+    else:
+        print(f"\n  Range d'ouverture : se forme à {or_txt} (15 min), relancer l'analyse ensuite")
+    for lvl in above[:2]:
+        add("Cassure + retest", "long", lvl[1], lvl[1] - sbuf, [x for x in above if x[1] > lvl[1]],
+            f"clôture H1 au-dessus de {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
+    for lvl in below[:2]:
+        add("Cassure + retest", "short", lvl[1], lvl[1] + sbuf, [x for x in below if x[1] < lvl[1]],
+            f"clôture H1 sous {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
+    cand.sort(key=lambda c: (c[0], 0 if c[1].startswith("Cassure") else 1, -c[7]))
+    print("\n5. SETUPS DE BASE + CONFIRMATION PAR LES 4 ÉTAPES (entrée seulement après la condition)")
+    shown = 0
+    for (rank, kind, side, e, s, t, tname, rr, cond, lines, verdict) in cand:
+        if rank >= 3:
+            continue
+        shown += 1
+        br, size, pv = run_plan(sym, side, e, s, t, a)
+        print(f"{shown}. {kind} {'ACHAT' if side == 'long' else 'VENTE'} : {verdict}")
+        print(f"   entrée {e:.2f}  stop {s:.2f}  objectif {t:.2f}  ({br.replace('Bracket  ', 'bracket ')})")
         print(f"   Condition : {cond}")
-        print(f"   {br} | {size}")
-        print(f"   {verdict}")
-    if not cand:
-        print("  aucun setup avec un rendement/risque d'au moins 1,5 : attendre")
-    if against:
-        print("  Écartés car contre la tendance HMA : " + ", ".join(f"{c[1]} {'achat' if c[2] == 'long' else 'vente'} {c[3]:.2f}" for c in against))
+        for ln in lines:
+            print(f"   {ln}")
+        print(f"   {size} | {pv}")
+    if not shown:
+        print("  aucun setup confirmé : attendre")
+    bad = [c for c in cand if c[0] >= 3]
+    if bad:
+        print("  À éviter (contre la tendance HMA) : " + ", ".join(f"{c[1]} {'achat' if c[2] == 'long' else 'vente'} {c[3]:.2f}" for c in bad))
+    cand = [c for c in cand if c[0] < 3]
 
     if a.chart:
         draw(a.chart, sym, m15, merged, st["H1"][3], cand, last)

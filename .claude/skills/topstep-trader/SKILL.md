@@ -227,12 +227,29 @@ le marché, il ne prédit pas la direction.
    veille, Asie (3h-9h), Londres (11h-14h) ; au-dessus = stops des vendeurs,
    en dessous = stops des acheteurs ; ce qui a déjà été pris aujourd'hui ;
    cible probable dans le sens de la tendance.
-5. **Setups** dans le sens de la tendance : rejet sur un niveau ou
-   cassure-retest, stop à 1,5 ATR M15 au-delà du niveau (130 ticks minimum
-   sur MBT), objectif sur la liquidité suivante à au moins 1,5R. Bonus si
-   l'achat se fait en discount ou la vente en premium, et en phase de
-   retracement. Chacun passe par `plan.py` (risque max 160 $ par défaut : au
-   backtest, les stops plus larges ont coûté le plus). `--chart` : PNG M15.
+5. **Setups de base, confirmés par les étapes 1 à 4.** Le setup reste le
+   premier setup de la méthode : cassure d'un niveau en clôture (checklist
+   des cassures) puis retour sur le niveau, ou range d'ouverture de la
+   session (or 17h20, pétrole 18h, sinon 18h30). Stop à 1,5 ATR M15 au-delà
+   du niveau (130 ticks minimum sur MBT), ou milieu du range d'ouverture.
+   Chaque setup reçoit :
+   - étape 1 tendance : ✅ dans le sens, ⚠️ mixte (attendre), ❌ contre (à éviter) ;
+   - étape 2 position : information seulement ;
+   - étape 3 phase : ⚠️ en retracement ou transition (taille réduite) ;
+   - étape 4 liquidité : objectif sur la liquidité suivante, au moins 1,5R.
+   Verdict : CONFIRMÉ, CONFIRMÉ taille réduite, ATTENDRE ou À ÉVITER. La
+   cassure + retest passe avant le range d'ouverture. Chaque setup passe par
+   `plan.py` (risque max 160 $ par défaut). `--chart` : PNG M15.
+
+**Backtest de la méthode (or, H1, 2 ans, 1 trade par jour, 17h-21h, risque
+160 $ max)** : cassure + retest dans le sens de la tendance HMA H1 + H4 :
+59 trades, 61 % gagnants, +0,65 R par trade (t = 3,5), creux -460 $. Tous
+setups dans le sens de la tendance : +0,32 R (t = 2,3) ; contre : -0,05 R ;
+tendance mixte : +0,12 R (non significatif). Rejet sur niveau : 0,00 R.
+Entrées pendant un retracement : -0,29 R (14 trades). Premium ou discount :
+pas d'effet mesurable. Range d'ouverture seul ou filtré par la HMA : environ
+0 R. Avec un risque jusqu'à 300 $, l'avantage tombe à +0,15 R. Résultats
+plus forts en 2026 ; plusieurs filtres comparés sur les mêmes données.
 
 **Lire une capture de l'utilisateur** : calibrer l'échelle avec deux prix de
 l'axe (pixels par point) avant de lire un niveau ; repérer les derniers
