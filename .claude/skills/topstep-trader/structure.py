@@ -217,6 +217,15 @@ def main():
     above = [x for x in merged if x[1] > last + 0.2 * a15]
     below = [x for x in merged if x[1] < last - 0.2 * a15][::-1]
 
+    # lecture des dernières bougies (anatomie d'abord, figure ensuite)
+    from candles import describe, patterns
+    print("\nBOUGIES (la dernière peut être en cours)")
+    for lab, df in (("H1", h1), ("M15", m15)):
+        dd, sens = patterns(df[["open", "high", "low", "close"]])
+        for t, r in dd.tail(2).iterrows():
+            figs = [k for k in sens if r[k]]
+            print(f"  {lab:3s} {t:%d/%m %H:%M}  {describe(r)}" + (f"  [{', '.join(figs)}]" if figs else ""))
+
     # 5. SETUPS DE BASE (cassure + retest d'un niveau, range d'ouverture), puis les 4 étapes en confirmation
     cand = []
     sbuf = max(1.5 * a15, MIN_STOP_TICKS.get(sym, 10) * tick)
@@ -238,14 +247,10 @@ def main():
             lines.append("⚠️ 1. tendance mixte (H1 et H4 en désaccord) : au test, pas d'avantage")
         else:
             t_ok = "contre"
-            lines.append("❌ 1. contre la tendance HMA : au test, perdant")
+            lines.append("❌ 1. contre la tendance HMA : au test, perdant (-0,13 à -0,41 R par trade)")
         lines.append(f"ℹ️ 2. prix en {zone.split(' ')[0].lower()} du range H1 (information : non filtrant au test)")
-        if "RETRACEMENT" in phase or "TRANSITION" in phase:
-            ph_ok = False
-            lines.append(f"⚠️ 3. phase {phase.split(' ')[0].lower()} : au test, les entrées pendant un retracement ont perdu")
-        else:
-            ph_ok = True
-            lines.append(f"✅ 3. phase {phase.split(' ')[0].lower()} : favorable à une cassure")
+        ph_ok = True
+        lines.append(f"ℹ️ 3. phase {phase.split(' ')[0].lower()} (information : pas d'effet mesuré au test)")
         return t_ok, ph_ok, lines
 
     def add(kind, side, entry, stop, targets, cond):
@@ -259,8 +264,8 @@ def main():
             t_ok, ph_ok, lines = confirm(side)
             lines.append(f"✅ 4. objectif sur la liquidité : {tg:.2f} ({tname}), {rr:.1f} R")
             verdict = {"contre": "À ÉVITER", "mixte": "ATTENDRE que H1 et H4 s'accordent"}.get(t_ok) or \
-                ("CONFIRMÉ" if ph_ok else "CONFIRMÉ, taille réduite (phase défavorable)")
-            rank = {"CONFIRMÉ": 0}.get(verdict, 1 if verdict.startswith("CONFIRMÉ") else 2 if t_ok == "mixte" else 3)
+                "CONFIRMÉ (tendance)"
+            rank = 0 if verdict.startswith("CONFIRMÉ") else 2 if t_ok == "mixte" else 3
             cand.append((rank, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                          round(tg / tick) * tick, tname, rr, cond, lines, verdict))
             return

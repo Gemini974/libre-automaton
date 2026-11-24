@@ -43,7 +43,8 @@ retardés de 10 à 20 minutes ; TopstepX reste la référence pour les ordres) :
 python3 "${CLAUDE_SKILL_DIR}/market.py" levels MBT                   # dernier, haut/bas du jour, de la veille, 5 jours, ATR 15m
 python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'ouverture + déclenchement, commande plan.py prête
 python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
-python3 "${CLAUDE_SKILL_DIR}/structure.py" MGC --chart /tmp/mgc.png  # structure D/H4/H1, biais, niveaux, setups classés + PNG
+python3 "${CLAUDE_SKILL_DIR}/structure.py" MGC --chart /tmp/mgc.png  # tendance, position, phase, liquidité, bougies, setups confirmés + PNG
+python3 "${CLAUDE_SKILL_DIR}/candles.py" MGC                         # lecture des 6 dernières bougies M15 et H1, figures, Heikin-Ashi
 ```
 
 python3 "${CLAUDE_SKILL_DIR}/market.py" macro                       # taux 10 et 5 ans, dollar, VIX, yen, ZN
@@ -235,21 +236,61 @@ le marché, il ne prédit pas la direction.
    Chaque setup reçoit :
    - étape 1 tendance : ✅ dans le sens, ⚠️ mixte (attendre), ❌ contre (à éviter) ;
    - étape 2 position : information seulement ;
-   - étape 3 phase : ⚠️ en retracement ou transition (taille réduite) ;
+   - étape 3 phase : information seulement ;
    - étape 4 liquidité : objectif sur la liquidité suivante, au moins 1,5R.
-   Verdict : CONFIRMÉ, CONFIRMÉ taille réduite, ATTENDRE ou À ÉVITER. La
-   cassure + retest passe avant le range d'ouverture. Chaque setup passe par
+   Verdict : CONFIRMÉ (tendance), ATTENDRE (tendance mixte) ou À ÉVITER
+   (contre la tendance). Chaque setup passe par
    `plan.py` (risque max 160 $ par défaut). `--chart` : PNG M15.
 
 **Backtest de la méthode (or, H1, 2 ans, 1 trade par jour, 17h-21h, risque
-160 $ max)** : cassure + retest dans le sens de la tendance HMA H1 + H4 :
-59 trades, 61 % gagnants, +0,65 R par trade (t = 3,5), creux -460 $. Tous
-setups dans le sens de la tendance : +0,32 R (t = 2,3) ; contre : -0,05 R ;
-tendance mixte : +0,12 R (non significatif). Rejet sur niveau : 0,00 R.
-Entrées pendant un retracement : -0,29 R (14 trades). Premium ou discount :
-pas d'effet mesurable. Range d'ouverture seul ou filtré par la HMA : environ
-0 R. Avec un risque jusqu'à 300 $, l'avantage tombe à +0,15 R. Résultats
-plus forts en 2026 ; plusieurs filtres comparés sur les mêmes données.
+160 $ max, sans biais d'anticipation)** :
+- Le seul résultat solide est l'interdit : **contre la pente HMA H1**, l'ordre
+  limite sur retest perd -0,41 R par trade (t = -3,3) et le rejet -0,17 R.
+- Dans le sens de la HMA : retest en ordre limite +0,07 R, retest confirmé
+  (entrée à la clôture) 0,00 R, rejet -0,08 R. Aucun avantage démontré.
+- Range d'ouverture, London Breakout, Dual Thrust : environ 0 R.
+- Premium ou discount, phase, figures de bougies : pas d'effet mesurable.
+- Une première version du test entrait sur le niveau seulement quand la
+  bougie reclôturait du bon côté (biais d'anticipation) et donnait +0,65 R :
+  ce chiffre est faux, ne pas le citer.
+
+## Lecture des bougies (`candles.py`)
+
+Lire l'anatomie avant le nom de la figure :
+1. **Couleur et taille** par rapport à l'ATR (grande au-dessus de 1,3 ATR).
+2. **Corps** en % de la bougie : au-dessus de 85 % = marubozu (conviction),
+   sous 10 % = doji (indécision).
+3. **Mèches** : une mèche de 40 % ou plus de la bougie = rejet de ce côté.
+4. **Clôture** : dans le quart haut = acheteurs en contrôle, quart bas =
+   vendeurs, entre les deux = indécision. Une mèche au-delà d'un niveau ne
+   compte pas, seule la clôture compte.
+5. **Contexte** : tendance des 5 bougies précédentes (un marteau n'existe
+   qu'après une baisse, un pendu qu'après une hausse), niveau touché, sens de
+   la HMA.
+6. **Figures** reconnues sans regarder la bougie suivante : doji, libellule,
+   pierre tombale, marteau, pendu, étoile filante, marteau inversé,
+   marubozu, toupie, avalement, harami, pénétrante, nuage noir, pinces,
+   inside et outside bar, étoile du matin et du soir, trois soldats, trois
+   corbeaux.
+7. **Heikin-Ashi** (bougies lissées) : trois bougies de même couleur sans
+   mèche contraire = tendance nette.
+
+**Ce que dit le test sur l'or (H1, 2 ans, 4 heures après la figure)** : aucune
+figure seule ne donne d'avantage fiable (toutes avec |t| < 2). Les figures de
+retournement contre la tendance échouent (étoile filante, pendu, avalement
+baissier contre la HMA : -0,2 à -0,3 ATR). Dans le sens de la tendance, la
+plupart font un peu mieux qu'une bougie quelconque (+0,2 à +0,4 ATR contre
++0,1). Une bougie de confirmation plus nette (clôture extrême, longue mèche
+de rejet) n'a pas amélioré les entrées sur niveau. Les bougies servent à
+lire qui contrôle et à ne pas entrer contre, pas à prédire.
+
+## Dépôt je-suis-tm/quant-trading (testé sur l'or H1)
+
+MACD, Awesome Oscillator, Heikin-Ashi, Parabolic SAR : comme filtre de
+tendance, ils donnent des résultats proches de la HMA 21 (aucun ne la bat
+nettement). London Breakout et Dual Thrust : environ 0 R. Le script Shooting
+Star du dépôt regarde la bougie suivante pour valider le signal (biais
+d'anticipation) : la version de `candles.py` ne le fait pas.
 
 **Lire une capture de l'utilisateur** : calibrer l'échelle avec deux prix de
 l'axe (pixels par point) avant de lire un niveau ; repérer les derniers
