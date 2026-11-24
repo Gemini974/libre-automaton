@@ -209,6 +209,35 @@ Ne discriminent presque pas : la tendance H4 (55 % avec, 52 % contre), le
 nombre de touches du niveau, la compression avant la cassure, le jour de
 la semaine.
 
+## Méthode du jour : biais Daily + entrée M15 / M5 (`structure.py`, section 0 et setup n° 1)
+
+1. **Biais technique** : EMA 20 Daily au-dessus de l'EMA 50 Daily = achats
+   seulement ; en dessous = ventes seulement (jours terminés).
+2. **Accord avec le fondamental (règle de l'utilisateur)** : or = dollar
+   DXY, taux US 10 ans (en baisse = haussier or), VIX au-dessus de sa
+   moyenne 50 jours (haussier or) ; BTC = Nasdaq (en hausse = haussier),
+   dollar (en baisse = haussier), VIX sous sa moyenne (haussier). Vote à la
+   majorité. Technique et fondamental en désaccord = pas de trade. Plus le
+   calendrier du jour : pas d'entrée 15 min avant ou après une annonce
+   majeure (`av.py`, `geo.py`, `crypto.py`, `market.py macro`).
+3. **Entrée** : range d'ouverture de 15 min (or 17h20-17h35, pétrole
+   18h-18h15, BTC et indices 18h30-18h45) ; première bougie M15 qui clôture
+   au-delà du range dans le sens du biais ; stop 1 ATR M15 ; objectif 2R ou
+   sortie à 1h (au plus tard 1h10). Si le signal est déjà passé, ne pas
+   courir après. Les autres setups (cassure + retest, range borne à borne)
+   ne se prennent que dans le sens du biais du jour.
+
+Tests : avec le biais EMA 20/50, le range d'ouverture M15 sur l'or a donné
++0,36 R par trade en moyenne (+0,89 R tenu jusqu'à la fin de séance, 30
+trades, 60 jours), contre -0,58 R pris contre le biais. Sur toutes les
+entrées testées, l'or a fait +0,11 R avec le biais et -0,27 R contre (M15).
+La pente HMA 21 Daily est un mauvais biais (-0,09 R) : la HMA sert en H1 et
+H4. Les filtres fondamentaux de tendance (dollar, taux, VIX, Nasdaq) n'ont
+pas amélioré le biais sur 26 ans (or) et 9 ans (BTC) : l'accord fondamental
+est appliqué parce que l'utilisateur le demande, il réduit le nombre de
+trades sans gain prouvé. Échantillons courts en M15 (60 jours) : à valider
+sur le journal de trades.
+
 ## Structure et biais daily (`structure.py`)
 
 L'outil suit la méthode d'analyse de l'utilisateur, dans cet ordre. Il décrit

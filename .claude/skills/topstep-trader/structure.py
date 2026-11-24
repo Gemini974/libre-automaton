@@ -61,6 +61,10 @@ def structure(df, n):
     return trend, event, hs, ls, labels
 
 
+def ema(s, n):
+    return s.ewm(span=n, adjust=False).mean()
+
+
 def wma(s, n):
     w = np.arange(1, n + 1)
     return s.rolling(n).apply(lambda x: (x * w).sum() / w.sum(), raw=True)
@@ -108,6 +112,45 @@ def main():
     tk = lambda x: int(round(x / tick))  # distance en ticks (ce que TopstepX affiche)
     dt_ = lambda px: f"{'+' if px >= last else '-'}{tk(abs(px - last))} ticks"
     print(f"Tick {tick} = {SPECS.get(sym, (0, 0))[1]:.2f} $ ; ATR M15 {a15:.2f} ({tk(a15)} ticks)  ATR H1 {ah1:.2f} ({tk(ah1)} ticks)")
+
+    # 0. BIAIS DU JOUR = technique (EMA 20 / EMA 50 Daily, jours terminés) ET fondamental d'accord
+    dc = d1.close.iloc[:-1]
+    e20, e50 = ema(dc, 20).iloc[-1], ema(dc, 50).iloc[-1]
+    tech = 1 if e20 > e50 else -1
+    print(f"\n0. BIAIS DU JOUR")
+    print(f"  Technique : EMA 20 Daily {e20:.2f} {'>' if tech > 0 else '<'} EMA 50 Daily {e50:.2f} => {'HAUSSIER' if tech > 0 else 'BAISSIER'}"
+          "  (test : +0,11 R par trade avec le biais, -0,12 R contre)")
+    votes = []
+    crypto = sym in ("MBT", "MET", "BTC")
+    fund_src = ([("NQ=F", 1, "Nasdaq"), ("DX-Y.NYB", -1, "Dollar (DXY)"), ("^VIX", -1, "VIX")] if crypto else
+                [("DX-Y.NYB", -1, "Dollar (DXY)"), ("^TNX", -1, "Taux US 10 ans"), ("^VIX", 1, "VIX")])
+    for ysym, sign, lab in fund_src:
+        try:
+            _, fd = bars(ysym, "1d", 120)
+            fc = fd.close.iloc[:-1] if len(fd) > 60 else fd.close
+            if ysym == "^VIX":
+                up = fc.iloc[-1] > fc.rolling(50).mean().iloc[-1]
+                txt = f"{fc.iloc[-1]:.1f} {'au-dessus' if up else 'sous'} sa moyenne 50 j"
+            else:
+                up = ema(fc, 20).iloc[-1] > ema(fc, 50).iloc[-1]
+                txt = f"{'en hausse' if up else 'en baisse'} (EMA 20 {'>' if up else '<'} EMA 50)"
+            v = sign * (1 if up else -1)
+            votes.append(v)
+            print(f"  Fondamental : {lab:15s} {txt} => {'haussier' if v > 0 else 'baissier'} pour {sym}")
+        except Exception as ex:
+            print(f"  Fondamental : {lab} indisponible ({ex.__class__.__name__})")
+    fsum = sum(votes)
+    fund = 1 if fsum > 0 else -1 if fsum < 0 else 0
+    if fund == 0:
+        day_bias, btxt = 0, "PAS DE TRADE : fondamental partagé"
+    elif fund == tech:
+        day_bias, btxt = tech, ("ACHATS SEULEMENT" if tech > 0 else "VENTES SEULEMENT") + " (technique et fondamental d'accord)"
+    else:
+        day_bias, btxt = 0, "PAS DE TRADE : technique et fondamental en désaccord"
+    print(f"  => {btxt}")
+    print("  Test sur 26 ans (or) et 9 ans (BTC) : les filtres fondamentaux de tendance n'ont pas amélioré le biais ;"
+          " la règle d'accord est celle de l'utilisateur. Vérifier aussi le calendrier du jour (av.py macro, geo.py news,"
+          + (" crypto.py flows" if crypto else " market.py macro") + ") : pas d'entrée 15 min avant ou après une annonce majeure.")
 
     # 1. TENDANCE : pente de la HMA 21 (la structure HH/HL sert de contexte)
     print("\n1. TENDANCE (pente HMA 21 ; structure en contexte)")
@@ -277,6 +320,12 @@ def main():
     def confirm(side):
         d = 1 if side == "long" else -1
         lines = []
+        if day_bias == d:
+            lines.append("✅ 0. dans le sens du biais du jour (technique + fondamental)")
+        elif day_bias == 0:
+            lines.append(f"❌ 0. {btxt.lower()}")
+        else:
+            lines.append("❌ 0. contre le biais du jour")
         if trend == d:
             t_ok = "ok"
             lines.append("✅ 1. tendance HMA H1 + H4 dans le sens du trade")
@@ -291,6 +340,8 @@ def main():
         lines.append(f"ℹ️ 3. phase {phase.split(' ')[0].lower()} (information : pas d'effet mesuré au test)")
         return t_ok, ph_ok, lines
 
+    d_ = lambda sd: 1 if sd == "long" else -1
+
     def add(kind, side, entry, stop, targets, cond):
         risk = abs(entry - stop)
         for j, (tname, tg) in enumerate(targets):
@@ -301,6 +352,16 @@ def main():
                 cond += " ; obstacles avant l'objectif : " + ", ".join(f"{x[1]:.2f}" for x in targets[:j]) + " (sortie partielle possible)"
             t_ok, ph_ok, lines = confirm(side)
             lines.append(f"✅ 4. objectif sur la liquidité : {tg:.2f} ({tname}), {rr:.1f} R")
+            if day_bias != d_(side):
+                cand.append((3, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
+                             round(tg / tick) * tick, tname, rr, cond, lines, "À ÉVITER (biais du jour)"))
+                return
+            if kind.startswith("Range d'ouverture M15"):
+                lines.append("ℹ️ méthode testée (or, 60 jours) : avec le biais +0,36 à +0,89 R par trade, contre -0,58 R")
+                v = "CONFIRMÉ (méthode)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
+                cand.append((-1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
+                             round(tg / tick) * tick, tname, rr, cond, lines, v))
+                return
             if "borne à borne" in kind and t_ok == "mixte":
                 lines[0] = "ℹ️ 1. tendance mixte : normal dans un range"
                 lines.append("⚠️ range borne à borne : pas d'avantage mesuré au test (or et BTC, H1 et M15)")
@@ -319,12 +380,23 @@ def main():
     if len(orb) >= 3:
         oh, ol = orb.high.max(), orb.low.min()
         print(f"\n  Range d'ouverture {or_txt} (15 min) : {ol:.2f} - {oh:.2f} ({tk(oh - ol)} ticks ; haut {dt_(oh)}, bas {dt_(ol)})")
-        add("Range d'ouverture", "long", oh, min((oh + ol) / 2, oh - sbuf),
-            [x for x in above if x[1] > oh], f"clôture M5 ou M15 au-dessus de {oh:.2f} ; {check}")
-        add("Range d'ouverture", "short", ol, max((oh + ol) / 2, ol + sbuf), [x for x in below if x[1] < ol],
-            f"clôture M5 ou M15 sous {ol:.2f} ; {check}")
+        r15 = max(a15, MIN_STOP_TICKS.get(sym, 10) * tick)
+        or_end = orb.index[-1] + pd.Timedelta(minutes=5)
+        aft = m15[(m15.index >= or_end.floor("15min")) & (m15.index.date == orb.index[-1].date())]
+        aft = aft.iloc[:-1] if len(aft) else aft  # la dernière bougie M15 peut être en cours
+        for nm, cond_ in (("au-dessus du haut", aft.close > oh), ("sous le bas", aft.close < ol)):
+            if cond_.any():
+                t0 = aft.index[cond_.values.argmax()]
+                print(f"  Déjà déclenché : première clôture M15 {nm} à {t0 + pd.Timedelta(minutes=15):%H:%M} ({aft.close[t0]:.2f}). "
+                      "Si le trade n'a pas été pris, ne pas courir après : attendre le retour sur le niveau ou passer.")
+        add("Range d'ouverture M15", "long", oh, oh - r15, [("2R", oh + 2 * r15)] + [x for x in above if x[1] > oh + 1.5 * r15],
+            f"PREMIÈRE bougie M15 qui clôture au-dessus de {oh:.2f} après {or_txt} + 15 min ; entrée à cette clôture, stop 1 ATR M15 ;"
+            " objectif 2R ou tenir jusqu'à 1h (au plus tard 1h10)")
+        add("Range d'ouverture M15", "short", ol, ol + r15, [("2R", ol - 2 * r15)] + [x for x in below if x[1] < ol - 1.5 * r15],
+            f"PREMIÈRE bougie M15 qui clôture sous {ol:.2f} après {or_txt} + 15 min ; entrée à cette clôture, stop 1 ATR M15 ;"
+            " objectif 2R ou tenir jusqu'à 1h (au plus tard 1h10)")
     else:
-        print(f"\n  Range d'ouverture : se forme à {or_txt} (15 min), relancer l'analyse ensuite")
+        print(f"\n  Range d'ouverture : se forme à {or_txt} (15 min), relancer l'analyse ensuite (setup principal de la méthode)")
     for lvl in above[:2]:
         add("Cassure + retest", "long", lvl[1], lvl[1] - sbuf, [x for x in above if x[1] > lvl[1]],
             f"clôture H1 au-dessus de {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
@@ -343,7 +415,7 @@ def main():
             add(f"Range {lab} borne à borne", side, b, st_, tgts,
                 f"bougie {lab} de rejet SUR la borne {b:.2f} (mèche {'haute' if side == 'short' else 'basse'}, clôture dans le range){note}")
     cand.sort(key=lambda c: (c[0], 0 if c[1].startswith("Cassure") else 1, -c[7]))
-    print("\n5. SETUPS DE BASE + CONFIRMATION PAR LES 4 ÉTAPES (entrée seulement après la condition)")
+    print("\n5. SETUPS : biais du jour d'abord, puis les 4 étapes en confirmation (entrée seulement après la condition)")
     shown = 0
     for (rank, kind, side, e, s, t, tname, rr, cond, lines, verdict) in cand:
         if rank >= 3:
@@ -360,7 +432,7 @@ def main():
         print("  aucun setup confirmé : attendre")
     bad = [c for c in cand if c[0] >= 3]
     if bad:
-        print("  À éviter (contre la tendance HMA) : " + ", ".join(f"{c[1]} {'achat' if c[2] == 'long' else 'vente'} {c[3]:.2f}" for c in bad))
+        print("  À éviter (contre le biais du jour ou la tendance HMA) : " + ", ".join(f"{c[1]} {'achat' if c[2] == 'long' else 'vente'} {c[3]:.2f}" for c in bad))
     cand = [c for c in cand if c[0] < 3]
 
     if a.chart:

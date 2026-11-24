@@ -43,6 +43,8 @@ stop et objectif avant l'entrée, taille en ticks, vérification `plan.py` (PASS
 
 ## Habitudes de travail
 
+- Biais du jour : EMA 20 / EMA 50 Daily, en accord avec le fondamental, sinon pas de
+  trade. Entrée en M15 / M5 (range d'ouverture d'abord). Voir `structure.py`.
 - Toujours donner : biais (Daily, H4), niveaux, setups avec entrée, stop, objectif,
   bracket en ticks, taille et risque en $, fenêtre horaire, et ce qui invalide.
 - Stop au moins égal à l'amplitude habituelle de l'heure d'entrée (BTC : environ 130
