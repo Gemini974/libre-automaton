@@ -217,14 +217,49 @@ def main():
     above = [x for x in merged if x[1] > last + 0.2 * a15]
     below = [x for x in merged if x[1] < last - 0.2 * a15][::-1]
 
-    # lecture des dernières bougies (anatomie d'abord, figure ensuite)
+    # bougies : lues SEULEMENT quand elles touchent un support ou une résistance (règle de l'utilisateur)
     from candles import describe, patterns
-    print("\nBOUGIES (la dernière peut être en cours)")
-    for lab, df in (("H1", h1), ("M15", m15)):
+    lvl_px = [px for _, px in merged]
+    print("\nBOUGIES SUR NIVEAU (une bougie n'est lue que sur un support ou une résistance)")
+    seen = False
+    for lab, df, at in (("H1", h1, ah1), ("M15", m15, a15)):
         dd, sens = patterns(df[["open", "high", "low", "close"]])
-        for t, r in dd.tail(2).iterrows():
+        for t, r in dd.tail(3).iterrows():
+            hit = [px for px in lvl_px if r.low - 0.1 * at <= px <= r.high + 0.1 * at]
+            if not hit:
+                continue
+            seen = True
             figs = [k for k in sens if r[k]]
-            print(f"  {lab:3s} {t:%d/%m %H:%M}  {describe(r)}" + (f"  [{', '.join(figs)}]" if figs else ""))
+            print(f"  {lab:3s} {t:%d/%m %H:%M} sur {', '.join(f'{x:.2f}' for x in hit)} : {describe(r)}" + (f"  [{', '.join(figs)}]" if figs else ""))
+    if not seen:
+        print("  aucune des dernières bougies n'est sur un niveau : pas de lecture")
+
+    # RANGE : bornes, nombre de touches, balayage de liquidité (M15 et H1, 36 bougies)
+    ranges = []
+    print("\nRANGE (36 dernières bougies)")
+    for lab, df, at in (("M15", m15, a15), ("H1", h1, ah1)):
+        w = df.iloc[-37:-1]
+        hi_r, lo_r = w.high.max(), w.low.min()
+        hgt = hi_r - lo_r
+        eff = abs(w.close.iloc[-1] - w.close.iloc[0]) / hgt if hgt else 1
+        if not (3 * at <= hgt <= 8 * at and eff < 0.35):
+            print(f"  {lab} : pas de range net (hauteur {hgt / at:.1f} ATR, déplacement net {eff*100:.0f} % de la hauteur)")
+            continue
+
+        def touches(mask):
+            idx = np.where(mask)[0]
+            return (1 + sum(1 for i in range(1, len(idx)) if idx[i] - idx[i - 1] > 3)) if len(idx) else 0
+        nt_h = touches(w.high.values >= hi_r - 0.1 * hgt)
+        nt_l = touches(w.low.values <= lo_r + 0.1 * hgt)
+        if nt_h < 2 or nt_l < 2:
+            print(f"  {lab} : bornes {lo_r:.2f} - {hi_r:.2f} pas encore confirmées ({nt_h} touche(s) en haut, {nt_l} en bas ; il en faut 2 de chaque côté)")
+            continue
+        cur_b = df.iloc[-1]
+        sw = ("balayage du HAUT (mèche au-dessus, clôture dedans)" if cur_b.high > hi_r and cur_b.close < hi_r else
+              "balayage du BAS (mèche en dessous, clôture dedans)" if cur_b.low < lo_r and cur_b.close > lo_r else "")
+        print(f"  {lab} : borne haute {hi_r:.2f} ({nt_h} touches)  borne basse {lo_r:.2f} ({nt_l} touches)  milieu {(hi_r + lo_r) / 2:.2f}"
+              + (f"\n        dernière bougie : {sw}" if sw else ""))
+        ranges.append((lab, hi_r, lo_r, nt_h, nt_l, at))
 
     # 5. SETUPS DE BASE (cassure + retest d'un niveau, range d'ouverture), puis les 4 étapes en confirmation
     cand = []
@@ -263,6 +298,12 @@ def main():
                 cond += " ; obstacles avant l'objectif : " + ", ".join(f"{x[1]:.2f}" for x in targets[:j]) + " (sortie partielle possible)"
             t_ok, ph_ok, lines = confirm(side)
             lines.append(f"✅ 4. objectif sur la liquidité : {tg:.2f} ({tname}), {rr:.1f} R")
+            if kind.startswith("Range ") and t_ok == "mixte":
+                lines[0] = "ℹ️ 1. tendance mixte : normal dans un range"
+                lines.append("⚠️ range borne à borne : pas d'avantage mesuré au test (or et BTC, H1 et M15)")
+                cand.append((1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
+                             round(tg / tick) * tick, tname, rr, cond, lines, "POSSIBLE (non prouvé au test)"))
+                return
             verdict = {"contre": "À ÉVITER", "mixte": "ATTENDRE que H1 et H4 s'accordent"}.get(t_ok) or \
                 "CONFIRMÉ (tendance)"
             rank = 0 if verdict.startswith("CONFIRMÉ") else 2 if t_ok == "mixte" else 3
@@ -287,6 +328,17 @@ def main():
     for lvl in below[:2]:
         add("Cassure + retest", "short", lvl[1], lvl[1] + sbuf, [x for x in below if x[1] < lvl[1]],
             f"clôture H1 sous {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
+    # range borne à borne : vente sur la borne haute, achat sur la borne basse, après une bougie de rejet sur la borne
+    for lab, hi_r, lo_r, nt_h, nt_l, at in ranges[:1]:
+        buf = max(0.25 * at, MIN_STOP_TICKS.get(sym, 10) * tick)
+        mid = (hi_r + lo_r) / 2
+        for side, b, n in (("short", hi_r, nt_h + 1), ("long", lo_r, nt_l + 1)):
+            st_ = b + buf + 0.1 * (hi_r - lo_r) if side == "short" else b - buf - 0.1 * (hi_r - lo_r)
+            tgts = [("milieu du range", mid), ("borne opposée", lo_r if side == "short" else hi_r)]
+            note = (f" ; touche n° {n} : si la mèche dépasse la borne puis clôture dedans, c'est un balayage de liquidité"
+                    if n >= 3 else "")
+            add(f"Range {lab} borne à borne", side, b, st_, tgts,
+                f"bougie {lab} de rejet SUR la borne {b:.2f} (mèche {'haute' if side == 'short' else 'basse'}, clôture dans le range){note}")
     cand.sort(key=lambda c: (c[0], 0 if c[1].startswith("Cassure") else 1, -c[7]))
     print("\n5. SETUPS DE BASE + CONFIRMATION PAR LES 4 ÉTAPES (entrée seulement après la condition)")
     shown = 0

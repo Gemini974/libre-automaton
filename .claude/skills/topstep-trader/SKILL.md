@@ -256,6 +256,10 @@ le marché, il ne prédit pas la direction.
 
 ## Lecture des bougies (`candles.py`)
 
+**Règle de l'utilisateur : une bougie ne se lit que sur un support ou une
+résistance, jamais ailleurs.** `structure.py` n'affiche la lecture que pour
+les bougies qui touchent un niveau.
+
 Lire l'anatomie avant le nom de la figure :
 1. **Couleur et taille** par rapport à l'ATR (grande au-dessus de 1,3 ATR).
 2. **Corps** en % de la bougie : au-dessus de 85 % = marubozu (conviction),
@@ -283,6 +287,34 @@ plupart font un peu mieux qu'une bougie quelconque (+0,2 à +0,4 ATR contre
 +0,1). Une bougie de confirmation plus nette (clôture extrême, longue mèche
 de rejet) n'a pas amélioré les entrées sur niveau. Les bougies servent à
 lire qui contrôle et à ne pas entrer contre, pas à prédire.
+
+## Range borne à borne
+
+Règles de l'utilisateur : dans un range, vendre la borne haute et acheter la
+borne basse sur une bougie de rejet SUR la borne ; à la 3e ou 4e touche, la
+mèche qui dépasse la borne puis clôture dedans est souvent la prise de
+liquidité avant le mouvement inverse.
+
+`structure.py` repère le range sur les 36 dernières bougies M15 et H1
+(hauteur 3 à 8 ATR, déplacement net sous 35 % de la hauteur, au moins 2
+touches de chaque côté), compte les touches, signale un balayage sur la
+dernière bougie, et propose l'entrée sur la borne (stop au-delà de la borne,
+objectif milieu ou borne opposée). Tendance mixte = normal dans un range.
+
+**Test (or et BTC, H1 2 ans et M15 60 jours, entrée à la clôture de la bougie
+sur la borne, stop au-delà de la mèche)** :
+- Une bougie de rejet sur la borne fait mieux qu'une entrée sans regarder la
+  bougie sur l'or H1 (-0,13 R contre -0,27 R ; objectif milieu +0,01 R contre
+  -0,17 R), pas sur le BTC. Aucune version n'est gagnante de façon fiable.
+- Or M15 (60 jours) vers la borne opposée : +0,34 R avec bougie de rejet
+  (50 trades, non significatif).
+- BTC M15 : nettement perdant (-0,47 à -0,65 R) avec un stop juste au-delà de
+  la mèche : sur le BTC, un stop serré sur une borne se fait prendre.
+- 3e ou 4e touche : le balayage n'a pas fait mieux que les autres touches
+  (or H1 +0,01 R, BTC H1 -0,15 R, or M15 -0,26 R) ; après la 3e touche le prix
+  casse la borne plus souvent qu'il ne rejoint la borne opposée (38 % contre
+  24 % sur l'or H1). Exception à surveiller : or M15 4e touche, borne opposée
+  d'abord dans 50 % des cas (14 cas seulement).
 
 ## Dépôt je-suis-tm/quant-trading (testé sur l'or H1)
 
