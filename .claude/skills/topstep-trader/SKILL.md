@@ -172,6 +172,38 @@ BTC1! sur TradingView cote comme le MBT. Si l'utilisateur envoie BTC/USDT
    l'objectif. Annuler les ordres non exécutés avant l'annonce ou avant
    00:30. À plat avant 01:10.
 
+## Checklist : vraie ou fausse cassure
+
+Étude sur l'or (GC, bougies H1, 2 ans, 993 cassures des plus hauts et plus
+bas de la veille, de l'Asie et de Londres). Vraie = le prix va à 2 ATR H1
+au-delà du niveau ; fausse = une bougie reclôture de l'autre côté. Sans
+filtre : 54 % de vraies. Résultats sur le passé, non validés hors
+échantillon ; sur M15, juger la bougie H1 complète.
+
+1. **Clôture franche** au-delà du niveau. Une clôture à moins de 0,25 ATR
+   du niveau n'est vraie que 27 % du temps (au-delà de 1 ATR : 87 %).
+2. **Corps plus grand que l'ATR H1**, clôture dans le quart extrême de la
+   bougie. Corps sous 0,6 ATR ou clôture en mèche : 37 % de vraies.
+3. **Volume au moins 2 fois la moyenne 20** (62 % de vraies ; sous 0,8 fois :
+   36 %).
+4. **RSI au-dessus de 65** dans le sens de la cassure (sous 35 pour une
+   vente). RSI sous 55 dans le sens : 34 %.
+5. **Heure (La Réunion)** : 17h à 19h30 (56 à 62 %) ou 13h (65 %). Éviter
+   14h (35 %), 16h (44 %) et 20h à 21h (32 à 38 %).
+6. **Stop à 1,5 à 2 ATR**, objectif connu, plan passé par `plan.py`.
+7. **Sortie au temps** : 60 % des fausses cassures échouent dans les 2
+   heures, et la moitié des vraies atteignent leur objectif dès la première.
+   Sans progrès après 2 bougies H1, sortir ou resserrer.
+
+Combinaisons : corps > 1 ATR + volume > 2 fois : 70 % ; avec RSI > 65 :
+76 % ; avec la clôture dans le quart extrême : 78 %. Sans les points 2, 3
+et 4, la cassure est fausse environ 6 fois sur 10 : attendre plutôt le
+retour sous le niveau pour jouer l'autre sens.
+
+Ne discriminent presque pas : la tendance H4 (55 % avec, 52 % contre), le
+nombre de touches du niveau, la compression avant la cassure, le jour de
+la semaine.
+
 ## Règles du compte (celles de Topstep uniquement)
 
 - Limite journalière (DLL) : **1 000 $** (`--daily-limit`, défaut 1000).
