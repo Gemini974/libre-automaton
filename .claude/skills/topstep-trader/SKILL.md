@@ -43,6 +43,7 @@ retardés de 10 à 20 minutes ; TopstepX reste la référence pour les ordres) :
 python3 "${CLAUDE_SKILL_DIR}/market.py" levels MBT                   # dernier, haut/bas du jour, de la veille, 5 jours, ATR 15m
 python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'ouverture + déclenchement, commande plan.py prête
 python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
+python3 "${CLAUDE_SKILL_DIR}/structure.py" MGC --chart /tmp/mgc.png  # structure D/H4/H1, biais, niveaux, setups classés + PNG
 ```
 
 python3 "${CLAUDE_SKILL_DIR}/market.py" macro                       # taux 10 et 5 ans, dollar, VIX, yen, ZN
@@ -137,7 +138,8 @@ BTC1! sur TradingView cote comme le MBT. Si l'utilisateur envoie BTC/USDT
    Pas d'entrée de 15 minutes avant à 15 minutes après une annonce
    majeure (`--news HH:MM` bloque cette fenêtre). À plat ou stop au point
    d'entrée 15 minutes avant.
-2. **Biais.** Unité haute (H4 ou H1) : tendance, triangle ou range, niveaux
+2. **Biais.** Lancer `structure.py` (voir « Structure et biais daily »).
+   Unité haute (Daily, H4, H1) : tendance, triangle ou range, niveaux
    clés, RSI. Fondamentaux en une ligne. Le biais dit quel côté est
    prioritaire, il n'interdit pas l'autre.
 3. **Range d'ouverture.** Plus haut et plus bas des 15 premières minutes de
@@ -171,6 +173,75 @@ BTC1! sur TradingView cote comme le MBT. Si l'utilisateur envoie BTC/USDT
    objectif ou à 1R. Alertes TradingView sur l'entrée, le stop et
    l'objectif. Annuler les ordres non exécutés avant l'annonce ou avant
    00:30. À plat avant 01:10.
+
+## Checklist : vraie ou fausse cassure
+
+Étude sur l'or (GC, bougies H1, 2 ans, 993 cassures des plus hauts et plus
+bas de la veille, de l'Asie et de Londres). Vraie = le prix va à 2 ATR H1
+au-delà du niveau ; fausse = une bougie reclôture de l'autre côté. Sans
+filtre : 54 % de vraies. Résultats sur le passé, non validés hors
+échantillon ; sur M15, juger la bougie H1 complète.
+
+1. **Clôture franche** au-delà du niveau. Une clôture à moins de 0,25 ATR
+   du niveau n'est vraie que 27 % du temps (au-delà de 1 ATR : 87 %).
+2. **Corps plus grand que l'ATR H1**, clôture dans le quart extrême de la
+   bougie. Corps sous 0,6 ATR ou clôture en mèche : 37 % de vraies.
+3. **Volume au moins 2 fois la moyenne 20** (62 % de vraies ; sous 0,8 fois :
+   36 %).
+4. **RSI au-dessus de 65** dans le sens de la cassure (sous 35 pour une
+   vente). RSI sous 55 dans le sens : 34 %.
+5. **Heure (La Réunion)** : 17h à 19h30 (56 à 62 %) ou 13h (65 %). Éviter
+   14h (35 %), 16h (44 %) et 20h à 21h (32 à 38 %).
+6. **Stop à 1,5 à 2 ATR**, objectif connu, plan passé par `plan.py`.
+7. **Sortie au temps** : 60 % des fausses cassures échouent dans les 2
+   heures, et la moitié des vraies atteignent leur objectif dès la première.
+   Sans progrès après 2 bougies H1, sortir ou resserrer.
+
+Combinaisons : corps > 1 ATR + volume > 2 fois : 70 % ; avec RSI > 65 :
+76 % ; avec la clôture dans le quart extrême : 78 %. Sans les points 2, 3
+et 4, la cassure est fausse environ 6 fois sur 10 : attendre plutôt le
+retour sous le niveau pour jouer l'autre sens.
+
+Ne discriminent presque pas : la tendance H4 (55 % avec, 52 % contre), le
+nombre de touches du niveau, la compression avant la cassure, le jour de
+la semaine.
+
+## Structure et biais daily (`structure.py`)
+
+L'outil décrit le marché, il ne prédit pas la direction.
+
+1. **Structure** par unité (Daily, H4, H1) : sommets et creux confirmés
+   (fractales), HH/HL = haussière, LH/LL = baissière, sinon range ; dernière
+   cassure de structure (BOS dans le sens de la tendance, CHoCH contre elle) ;
+   prix par rapport aux EMA20/50.
+2. **Niveaux de liquidité** : veille (haut, bas, clôture), jour, Asie (3h-9h),
+   Londres (11h-14h), ouverture de minuit New York (9h en hiver), plage de 20
+   jours, derniers swings H1. Les niveaux à moins de 0,3 ATR M15 sont fusionnés.
+3. **Biais** : score de -5 à +5 (structure et EMA du Daily et du H4, côté de
+   l'ouverture de minuit). +2 ou plus : achat prioritaire ; -2 ou moins :
+   vente prioritaire ; sinon jouer les bornes du range.
+4. **Setups** : rejet sur le niveau le plus proche et cassure-retest, stop à
+   1,5 ATR M15 au-delà du niveau, objectif au prochain niveau donnant au moins
+   1,5R. Classés par accord avec le biais puis par R, chacun passé par
+   `plan.py`. Entrée seulement après la condition (bougie de rejet, ou
+   clôture H1 conforme à la checklist puis retour sur le niveau).
+5. `--chart` : PNG M15 sur 36 h (niveaux, HH/HL/LH/LL, deux meilleurs setups)
+   à envoyer à l'utilisateur.
+
+**Lire une capture de l'utilisateur** : calibrer l'échelle avec deux prix de
+l'axe (pixels par point) avant de lire un niveau ; repérer les derniers
+sommets et creux, les nommer HH/HL/LH/LL ; dire si la dernière bougie a
+cassé une structure (clôture, pas mèche) ; placer ses zones et lignes ; puis
+comparer avec `structure.py` et signaler les écarts. Le biais reste le même
+dans toute la réponse.
+
+**Ce qui a été testé (or, 2 ans)** : le côté de l'ouverture de minuit à 17h
+donne le bon sens de 17h à 1h dans environ 55 % des cas (t = +3). Ne
+fonctionnent pas sur l'or : Londres qui fait l'extrême du jour (6 %),
+« acheter en discount » IPDA, les FVG (pas mieux qu'une zone au hasard), le
+retour à l'équilibre des plages 20/40/60 jours, le range d'ouverture seul
+(-0,02 R par trade). Les modèles d'IA de prévision (Kronos, Chronos-Bolt,
+Chronos-2) ne prédisent pas la direction : ne pas les utiliser pour cela.
 
 ## Règles du compte (celles de Topstep uniquement)
 
