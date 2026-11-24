@@ -43,6 +43,7 @@ retardés de 10 à 20 minutes ; TopstepX reste la référence pour les ordres) :
 python3 "${CLAUDE_SKILL_DIR}/market.py" levels MBT                   # dernier, haut/bas du jour, de la veille, 5 jours, ATR 15m
 python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'ouverture + déclenchement, commande plan.py prête
 python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
+python3 "${CLAUDE_SKILL_DIR}/structure.py" MGC --chart /tmp/mgc.png  # structure D/H4/H1, biais, niveaux, setups classés + PNG
 ```
 
 python3 "${CLAUDE_SKILL_DIR}/market.py" macro                       # taux 10 et 5 ans, dollar, VIX, yen, ZN
@@ -137,7 +138,8 @@ BTC1! sur TradingView cote comme le MBT. Si l'utilisateur envoie BTC/USDT
    Pas d'entrée de 15 minutes avant à 15 minutes après une annonce
    majeure (`--news HH:MM` bloque cette fenêtre). À plat ou stop au point
    d'entrée 15 minutes avant.
-2. **Biais.** Unité haute (H4 ou H1) : tendance, triangle ou range, niveaux
+2. **Biais.** Lancer `structure.py` (voir « Structure et biais daily »).
+   Unité haute (Daily, H4, H1) : tendance, triangle ou range, niveaux
    clés, RSI. Fondamentaux en une ligne. Le biais dit quel côté est
    prioritaire, il n'interdit pas l'autre.
 3. **Range d'ouverture.** Plus haut et plus bas des 15 premières minutes de
@@ -203,6 +205,43 @@ retour sous le niveau pour jouer l'autre sens.
 Ne discriminent presque pas : la tendance H4 (55 % avec, 52 % contre), le
 nombre de touches du niveau, la compression avant la cassure, le jour de
 la semaine.
+
+## Structure et biais daily (`structure.py`)
+
+L'outil décrit le marché, il ne prédit pas la direction.
+
+1. **Structure** par unité (Daily, H4, H1) : sommets et creux confirmés
+   (fractales), HH/HL = haussière, LH/LL = baissière, sinon range ; dernière
+   cassure de structure (BOS dans le sens de la tendance, CHoCH contre elle) ;
+   prix par rapport aux EMA20/50.
+2. **Niveaux de liquidité** : veille (haut, bas, clôture), jour, Asie (3h-9h),
+   Londres (11h-14h), ouverture de minuit New York (9h en hiver), plage de 20
+   jours, derniers swings H1. Les niveaux à moins de 0,3 ATR M15 sont fusionnés.
+3. **Biais** : score de -5 à +5 (structure et EMA du Daily et du H4, côté de
+   l'ouverture de minuit). +2 ou plus : achat prioritaire ; -2 ou moins :
+   vente prioritaire ; sinon jouer les bornes du range.
+4. **Setups** : rejet sur le niveau le plus proche et cassure-retest, stop à
+   1,5 ATR M15 au-delà du niveau, objectif au prochain niveau donnant au moins
+   1,5R. Classés par accord avec le biais puis par R, chacun passé par
+   `plan.py`. Entrée seulement après la condition (bougie de rejet, ou
+   clôture H1 conforme à la checklist puis retour sur le niveau).
+5. `--chart` : PNG M15 sur 36 h (niveaux, HH/HL/LH/LL, deux meilleurs setups)
+   à envoyer à l'utilisateur.
+
+**Lire une capture de l'utilisateur** : calibrer l'échelle avec deux prix de
+l'axe (pixels par point) avant de lire un niveau ; repérer les derniers
+sommets et creux, les nommer HH/HL/LH/LL ; dire si la dernière bougie a
+cassé une structure (clôture, pas mèche) ; placer ses zones et lignes ; puis
+comparer avec `structure.py` et signaler les écarts. Le biais reste le même
+dans toute la réponse.
+
+**Ce qui a été testé (or, 2 ans)** : le côté de l'ouverture de minuit à 17h
+donne le bon sens de 17h à 1h dans environ 55 % des cas (t = +3). Ne
+fonctionnent pas sur l'or : Londres qui fait l'extrême du jour (6 %),
+« acheter en discount » IPDA, les FVG (pas mieux qu'une zone au hasard), le
+retour à l'équilibre des plages 20/40/60 jours, le range d'ouverture seul
+(-0,02 R par trade). Les modèles d'IA de prévision (Kronos, Chronos-Bolt,
+Chronos-2) ne prédisent pas la direction : ne pas les utiliser pour cela.
 
 ## Règles du compte (celles de Topstep uniquement)
 
