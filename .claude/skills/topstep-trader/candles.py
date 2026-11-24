@@ -93,13 +93,14 @@ def heikin_ashi(df):
     return ha
 
 
-def describe(row):
-    """Une phrase sur la bougie : couleur, taille, corps, mèches, clôture, qui contrôle."""
+def describe(row, tick=None):
+    """Une phrase sur la bougie : couleur, taille, corps, mèches (en ticks si tick est donné), clôture, qui contrôle."""
     if np.isnan(row.atr) or row.high == row.low:
         return "données insuffisantes"
     col = "verte" if row.dir > 0 else "rouge" if row.dir < 0 else "neutre"
+    tk = (lambda x: f"{int(round(x / tick))} t") if tick else (lambda x: f"{x:.2f}")
     size = "grande" if row["size"] >= 1.3 else "petite" if row["size"] <= 0.6 else "moyenne"
-    body = f"corps {row.body_pct*100:.0f} %"
+    body = f"corps {row.body_pct*100:.0f} % ({tk(row.body)}), mèche haute {tk(row.upw)}, mèche basse {tk(row.low_w)}"
     wick = []
     rng = row.high - row.low
     if row.upw / rng >= 0.4:
@@ -108,7 +109,7 @@ def describe(row):
         wick.append("longue mèche basse (acheteurs ont rejeté le bas)")
     clo = row.clo
     ctrl = ("acheteurs en contrôle" if clo >= 0.75 else "vendeurs en contrôle" if clo <= 0.25 else "indécision")
-    return f"{col}, {size} ({row['size']:.1f} ATR), {body}, clôture à {clo*100:.0f} % de la bougie : {ctrl}" + \
+    return f"{col}, {size} ({tk(row.high - row.low)} = {row['size']:.1f} ATR), {body}, clôture à {clo*100:.0f} % de la bougie : {ctrl}" + \
         (" ; " + ", ".join(wick) if wick else "")
 
 
@@ -119,6 +120,8 @@ def main():
     p.add_argument("--tf", nargs="*", default=["15m", "1h"])
     p.add_argument("--n", type=int, default=6)
     a = p.parse_args()
+    from plan import SPECS
+    tick = SPECS.get(a.symbol.upper(), (None, 0))[0]
     for tf in a.tf:
         _, df = bars(a.symbol.upper(), tf, 5 if tf in ("5m", "15m") else 30)
         d, sens = patterns(df)
@@ -126,7 +129,7 @@ def main():
         print(f"\n{a.symbol.upper()} {tf} : {a.n} dernières bougies (heure de La Réunion ; la dernière peut être en cours)")
         for t, r in d.tail(a.n).iterrows():
             figs = [f"{k} ({'haussier' if sens[k] > 0 else 'baissier' if sens[k] < 0 else 'indécision'})" for k in sens if r[k]]
-            print(f"  {t:%d/%m %H:%M}  O {r.open:.2f} H {r.high:.2f} B {r.low:.2f} C {r.close:.2f}  {describe(r)}")
+            print(f"  {t:%d/%m %H:%M}  O {r.open:.2f} H {r.high:.2f} B {r.low:.2f} C {r.close:.2f}  {describe(r, tick)}")
             if figs:
                 print(f"               figure : {', '.join(figs)}")
         last = ha.tail(3)

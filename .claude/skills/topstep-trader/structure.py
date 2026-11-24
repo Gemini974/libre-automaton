@@ -105,7 +105,9 @@ def main():
     a15, ah1 = atr(m15), atr(h1)
 
     print(f"{sym} ({y})  dernier {last:.2f}  à {m15.index[-1]:%d/%m %H:%M} (La Réunion, données retardées)")
-    print(f"ATR M15 {a15:.2f}  ATR H1 {ah1:.2f}")
+    tk = lambda x: int(round(x / tick))  # distance en ticks (ce que TopstepX affiche)
+    dt_ = lambda px: f"{'+' if px >= last else '-'}{tk(abs(px - last))} ticks"
+    print(f"Tick {tick} = {SPECS.get(sym, (0, 0))[1]:.2f} $ ; ATR M15 {a15:.2f} ({tk(a15)} ticks)  ATR H1 {ah1:.2f} ({tk(ah1)} ticks)")
 
     # 1. TENDANCE : pente de la HMA 21 (la structure HH/HL sert de contexte)
     print("\n1. TENDANCE (pente HMA 21 ; structure en contexte)")
@@ -141,9 +143,10 @@ def main():
     rh, rl = max(rh, cur.high.max()), min(rl, cur.low.min())
     pos = (last - rl) / (rh - rl) if rh > rl else 0.5
     zone = "PREMIUM (cher)" if pos > 0.55 else "DISCOUNT (bon marché)" if pos < 0.45 else "ÉQUILIBRE"
-    print(f"\n2. OÙ EST LE PRIX\n  Range de travail H1 {rl:.2f} - {rh:.2f}, équilibre {(rh + rl) / 2:.2f} : prix à {pos*100:.0f} % => {zone}")
+    print(f"\n2. OÙ EST LE PRIX\n  Range de travail H1 {rl:.2f} - {rh:.2f} ({tk(rh - rl)} ticks), équilibre {(rh + rl) / 2:.2f} ({dt_((rh + rl) / 2)}) : prix à {pos*100:.0f} % => {zone}")
+    print(f"  Haut du range {dt_(rh)}, bas du range {dt_(rl)}")
     if mo:
-        print(f"  {'Au-dessus' if last > mo else 'Sous'} l'ouverture de minuit {mo:.2f}")
+        print(f"  {'Au-dessus' if last > mo else 'Sous'} l'ouverture de minuit {mo:.2f} ({dt_(mo)})")
     p20h, p20l = d1.high.iloc[-21:-1].max(), d1.low.iloc[-21:-1].min()
     print(f"  Plage de 20 jours {p20l:.2f} - {p20h:.2f} : {(last - p20l) / (p20h - p20l) * 100:.0f} %")
 
@@ -197,11 +200,11 @@ def main():
     for n, p in pools.items():
         if "Veille" in n and ((p == prev.high and today_hi > p) or (p == prev.low and today_lo < p)):
             print(f"  déjà prise aujourd'hui : {n} {p:.2f}")
-    print("  Au-dessus (liquidité acheteuse, stops des vendeurs) : " + ", ".join(f"{p:.2f} {n}" for n, p in bsl[:4]))
-    print("  En dessous (liquidité vendeuse, stops des acheteurs) : " + ", ".join(f"{p:.2f} {n}" for n, p in ssl[:4]))
+    print("  Au-dessus (liquidité acheteuse, stops des vendeurs) : " + ", ".join(f"{p:.2f} {n} ({dt_(p)})" for n, p in bsl[:4]))
+    print("  En dessous (liquidité vendeuse, stops des acheteurs) : " + ", ".join(f"{p:.2f} {n} ({dt_(p)})" for n, p in ssl[:4]))
     draw_on = (bsl[0] if trend > 0 and bsl else ssl[0] if trend < 0 and ssl else None)
     if draw_on:
-        print(f"  Cible probable dans le sens de la tendance : {draw_on[1]:.2f} ({draw_on[0]})")
+        print(f"  Cible probable dans le sens de la tendance : {draw_on[1]:.2f} ({draw_on[0]}, {dt_(draw_on[1])})")
 
     # niveaux pour les setups : liquidité + ouverture de minuit + jour
     lv = dict(pools)
@@ -230,7 +233,7 @@ def main():
                 continue
             seen = True
             figs = [k for k in sens if r[k]]
-            print(f"  {lab:3s} {t:%d/%m %H:%M} sur {', '.join(f'{x:.2f}' for x in hit)} : {describe(r)}" + (f"  [{', '.join(figs)}]" if figs else ""))
+            print(f"  {lab:3s} {t:%d/%m %H:%M} sur {', '.join(f'{x:.2f}' for x in hit)} : {describe(r, tick)}" + (f"  [{', '.join(figs)}]" if figs else ""))
     if not seen:
         print("  aucune des dernières bougies n'est sur un niveau : pas de lecture")
 
@@ -243,7 +246,7 @@ def main():
         hgt = hi_r - lo_r
         eff = abs(w.close.iloc[-1] - w.close.iloc[0]) / hgt if hgt else 1
         if not (3 * at <= hgt <= 8 * at and eff < 0.35):
-            print(f"  {lab} : pas de range net (hauteur {hgt / at:.1f} ATR, déplacement net {eff*100:.0f} % de la hauteur)")
+            print(f"  {lab} : pas de range net (hauteur {tk(hgt)} ticks = {hgt / at:.1f} ATR, déplacement net {eff*100:.0f} % de la hauteur)")
             continue
 
         def touches(mask):
@@ -257,7 +260,7 @@ def main():
         cur_b = df.iloc[-1]
         sw = ("balayage du HAUT (mèche au-dessus, clôture dedans)" if cur_b.high > hi_r and cur_b.close < hi_r else
               "balayage du BAS (mèche en dessous, clôture dedans)" if cur_b.low < lo_r and cur_b.close > lo_r else "")
-        print(f"  {lab} : borne haute {hi_r:.2f} ({nt_h} touches)  borne basse {lo_r:.2f} ({nt_l} touches)  milieu {(hi_r + lo_r) / 2:.2f}"
+        print(f"  {lab} : borne haute {hi_r:.2f} ({nt_h} touches, {dt_(hi_r)})  borne basse {lo_r:.2f} ({nt_l} touches, {dt_(lo_r)})  hauteur {tk(hgt)} ticks"
               + (f"\n        dernière bougie : {sw}" if sw else ""))
         ranges.append((lab, hi_r, lo_r, nt_h, nt_l, at))
 
@@ -298,7 +301,7 @@ def main():
                 cond += " ; obstacles avant l'objectif : " + ", ".join(f"{x[1]:.2f}" for x in targets[:j]) + " (sortie partielle possible)"
             t_ok, ph_ok, lines = confirm(side)
             lines.append(f"✅ 4. objectif sur la liquidité : {tg:.2f} ({tname}), {rr:.1f} R")
-            if kind.startswith("Range ") and t_ok == "mixte":
+            if "borne à borne" in kind and t_ok == "mixte":
                 lines[0] = "ℹ️ 1. tendance mixte : normal dans un range"
                 lines.append("⚠️ range borne à borne : pas d'avantage mesuré au test (or et BTC, H1 et M15)")
                 cand.append((1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
@@ -311,11 +314,11 @@ def main():
                          round(tg / tick) * tick, tname, rr, cond, lines, verdict))
             return
 
-    check = (f"checklist sur la bougie H1 de cassure : clôture franche, corps > {ah1:.2f} (1 ATR H1), volume >= 2x la moyenne, "
+    check = (f"checklist sur la bougie H1 de cassure : clôture franche, corps > {tk(ah1)} ticks (1 ATR H1), volume >= 2x la moyenne, "
              "RSI > 65 pour un achat ou < 35 pour une vente, heure 17h-19h30 ou 13h")
     if len(orb) >= 3:
         oh, ol = orb.high.max(), orb.low.min()
-        print(f"\n  Range d'ouverture {or_txt} (15 min) : {ol:.2f} - {oh:.2f}")
+        print(f"\n  Range d'ouverture {or_txt} (15 min) : {ol:.2f} - {oh:.2f} ({tk(oh - ol)} ticks ; haut {dt_(oh)}, bas {dt_(ol)})")
         add("Range d'ouverture", "long", oh, min((oh + ol) / 2, oh - sbuf),
             [x for x in above if x[1] > oh], f"clôture M5 ou M15 au-dessus de {oh:.2f} ; {check}")
         add("Range d'ouverture", "short", ol, max((oh + ol) / 2, ol + sbuf), [x for x in below if x[1] < ol],
@@ -348,7 +351,7 @@ def main():
         shown += 1
         br, size, pv = run_plan(sym, side, e, s, t, a)
         print(f"{shown}. {kind} {'ACHAT' if side == 'long' else 'VENTE'} : {verdict}")
-        print(f"   entrée {e:.2f}  stop {s:.2f}  objectif {t:.2f}  ({br.replace('Bracket  ', 'bracket ')})")
+        print(f"   entrée {e:.2f} ({dt_(e)} du prix)  stop {s:.2f}  objectif {t:.2f}  ({br.replace('Bracket  ', 'bracket ')})")
         print(f"   Condition : {cond}")
         for ln in lines:
             print(f"   {ln}")

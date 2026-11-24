@@ -45,6 +45,8 @@ python3 "${CLAUDE_SKILL_DIR}/market.py" orb MNQ --session ny         # range d'o
 python3 "${CLAUDE_SKILL_DIR}/market.py" spread                       # écart MBT - BTC spot
 python3 "${CLAUDE_SKILL_DIR}/structure.py" MGC --chart /tmp/mgc.png  # tendance, position, phase, liquidité, bougies, setups confirmés + PNG
 python3 "${CLAUDE_SKILL_DIR}/candles.py" MGC                         # lecture des 6 dernières bougies M15 et H1, figures, Heikin-Ashi
+python3 "${CLAUDE_SKILL_DIR}/ticks.py" volume MGC --chart /tmp/v.png   # bougies d'activité (même nombre de contrats), proches des bougies en ticks
+python3 "${CLAUDE_SKILL_DIR}/ticks.py" fetch --hours 12 && python3 "${CLAUDE_SKILL_DIR}/ticks.py" bars --n 500   # ticks Dukascopy (or au comptant)
 ```
 
 python3 "${CLAUDE_SKILL_DIR}/market.py" macro                       # taux 10 et 5 ans, dollar, VIX, yen, ZN
@@ -287,6 +289,27 @@ plupart font un peu mieux qu'une bougie quelconque (+0,2 à +0,4 ATR contre
 +0,1). Une bougie de confirmation plus nette (clôture extrême, longue mèche
 de rejet) n'a pas amélioré les entrées sur niveau. Les bougies servent à
 lire qui contrôle et à ne pas entrer contre, pas à prédire.
+
+## Lire le prix en ticks
+
+Toutes les distances se donnent en ticks, comme TopstepX : ATR, hauteur d'un
+range, distance du prix à chaque niveau, taille d'une bougie et de ses
+mèches, stop et objectif (MGC : 1 tick = 0,10 $ de prix = 1 $ ; MBT : 1 tick
+= 5 $ de prix = 0,50 $). `structure.py` et `candles.py` affichent les ticks.
+
+Graphiques en ticks (bougie de N transactions, comme la 500T de l'or) :
+- `ticks.py volume` : bougies d'activité, chacune se ferme quand le même
+  nombre de contrats a été échangé (volume 1 minute du contrat standard
+  sur Yahoo, 7 jours, retard d'environ 10 minutes). Le plus proche des
+  bougies en ticks du CME qu'on puisse obtenir gratuitement, à la minute
+  près. Bougie courte = marché actif.
+- `ticks.py fetch` puis `bars` : vrais ticks de l'or au comptant
+  (Dukascopy, hôte datafeed.dukascopy.com). Ce sont des changements de
+  cotation, pas les transactions du CME. Le serveur limite très fortement
+  le débit et peut refuser toutes les demandes (erreur 503) : dans ce cas
+  utiliser `volume`.
+- Sur une capture TopstepX en ticks (500T, 1000T), l'axe du temps n'est pas
+  régulier : lire la structure et les bougies, pas les heures.
 
 ## Range borne à borne
 
