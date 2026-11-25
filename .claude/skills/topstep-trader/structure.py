@@ -334,6 +334,13 @@ def main():
                 cand.append((3, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                              round(tg / tick) * tick, tname, rr, cond, lines, "À ÉVITER (biais du jour)"))
                 return
+            if kind.startswith(("Order block", "Retest du point")):
+                lines.append("ℹ️ méthode de l'utilisateur, testée sur l'or : OB + FVG M15 dans le sens du biais +0,24 R par trade"
+                             " (35 trades, 60 j), contre le biais -0,26 R ; retest contre le biais -0,28 R ; en M5 les stops sont trop serrés")
+                v = "CONFIRMÉ (votre méthode)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
+                cand.append((-2 if kind.startswith("Order") else -1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
+                             round(tg / tick) * tick, tname, rr, cond, lines, v))
+                return
             if kind.startswith("Range d'ouverture M15"):
                 lines.append("ℹ️ méthode testée (or, 60 jours) : avec le biais +0,36 à +0,89 R par trade, contre -0,58 R")
                 v = "CONFIRMÉ (méthode)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
@@ -385,6 +392,18 @@ def main():
     for lvl in below[:2]:
         add("Cassure + retest", "short", lvl[1], lvl[1] + sbuf, [x for x in below if x[1] < lvl[1]],
             f"clôture H1 sous {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
+    # MÉTHODE DE L'UTILISATEUR : order block + FVG (M15), sinon retest du dernier point cassé
+    from ob import find_setups
+    for sd_ in ([day_bias] if day_bias else [-1, 1]):
+        sdn = "short" if sd_ < 0 else "long"
+        for z in find_setups(m15, sd_)[:2]:
+            stp = z["far"] + 0.1 * a15 if sd_ < 0 else z["far"] - 0.1 * a15
+            liq = below if sd_ < 0 else above
+            fv = f", FVG {z['fvg'][0]:.2f}-{z['fvg'][1]:.2f}" if z["fvg"] else ""
+            rk_ = abs(z["entry"] - stp)
+            add(f"{z['kind']} M15", sdn, z["entry"], stp, [("2R", z["entry"] + sd_ * 2 * rk_)],
+                f"retour du prix dans la zone (bougie {z['t']:%d/%m %H:%M}, cassure à {z['bos']:%H:%M}{fv}) ; ordre limite à l'entrée,"
+                " stop au-delà de la zone, objectif 2R ou liquidité")
     # range borne à borne : vente sur la borne haute, achat sur la borne basse, après une bougie de rejet sur la borne
     for lab, hi_r, lo_r, nt_h, nt_l, at in ranges[:1]:
         buf = max(0.25 * at, MIN_STOP_TICKS.get(sym, 10) * tick)
@@ -396,7 +415,7 @@ def main():
                     if n >= 3 else "")
             add(f"Range {lab} borne à borne", side, b, st_, tgts,
                 f"bougie {lab} de rejet SUR la borne {b:.2f} (mèche {'haute' if side == 'short' else 'basse'}, clôture dans le range){note}")
-    cand.sort(key=lambda c: (c[0], 0 if c[1].startswith("Cassure") else 1, -c[7]))
+    cand.sort(key=lambda c: (c[0], 0 if c[1].startswith(("Order", "Retest du point")) else 1 if c[1].startswith("Cassure") else 2, -c[7]))
     print("\n5. SETUPS : biais du jour d'abord, puis les 4 étapes en confirmation (entrée seulement après la condition)")
     shown = 0
     for (rank, kind, side, e, s, t, tname, rr, cond, lines, verdict) in cand:
