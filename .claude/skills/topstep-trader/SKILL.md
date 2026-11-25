@@ -27,35 +27,43 @@ plupart des gens, et un plan propre n'y change rien.
 
 ## LA MÉTHODE, dans l'ordre (tout le reste de ce fichier la détaille)
 
+Setup principal (choisi par l'utilisateur, les deux sens) : **borne Dual Thrust + confirmation M5**.
+C'est la seule combinaison des dépôts testés (méthode de l'utilisateur, quant-trading, stolgo,
+day-trader-skill, QuantDinger, QuantMuse, COT) restée positive sur l'or 2006-2019, l'or 2020-2026
+et le BTC 2020-2026 (données 5 min OANDA / Binance trouvées via awesome-quant).
+
 | Étape | Règle | Outil |
 |---|---|---|
-| 1. Biais du jour | EMA 20 / EMA 50 Daily **et** fondamental d'accord ; désaccord = pas de trade ; jamais contre le biais (testé perdant partout, -0,2 à -0,4 R) | `bias.py`, `structure.py` section 0 |
-| 2. Actif | Contrats Topstep classés par biais, HMA, risque d'un stop, volume ; pas de positions corrélées | `scan.py` |
-| 3. Calendrier | Pas d'entrée 15 min avant ou après une annonce majeure (PCE, CPI, Fed...) | `av.py`, `market.py macro`, recherche web |
-| 4. Tendance | HMA 21 H1 et H4 : alignées = confirmé ; mixte = prudence ; contre = à éviter | `structure.py` section 1 |
-| 5. Zone M15 | **Or : order block + FVG uniquement** (OB sans FVG ignoré : -0,02 R en M15, -0,12 R en H1) ; sans FVG, **retest du dernier point cassé**. **BTC / Ether : retest du dernier point cassé** (OB + FVG perdant sur le BTC). Seulement la cassure la plus récente. | `ob.py`, `structure.py` setup n° 1 |
-| 6. Entrée M5 | Or OB + FVG : **CHoCH M5** ou **rejet M5** (limite possible) ; or retest : **rejet M5** ou **avalement M5** ; BTC retest : **rejet M5** ou **fin de repli M5** (3 bougies contre le biais puis une dans le sens, repris de stolgo) | `ob.live_setups` (état en direct) |
-| 7. Stop / objectif | Au-delà de la zone, minimum **or 100 ticks, BTC 130 ticks** ; objectif **2R**, ou la liquidité si elle existe (avec ou sans liquidité) | `structure.py` |
+| 1. Actif | Contrats Topstep classés ; pas de positions corrélées. Setup testé sur l'or et le BTC seulement | `scan.py` |
+| 2. Calendrier | Pas d'entrée 15 min avant ou après une annonce majeure (PCE, CPI, Fed...) | `av.py`, `market.py macro`, recherche web |
+| 3. Bornes du jour | Journée CME (3h La Réunion). Plage 5 j = max(plus haut 5 j - plus bas des clôtures, plus haute clôture - plus bas 5 j). Bornes = ouverture du jour +/- 0,5 x plage | `dualthrust.py`, `structure.py` setup n° 1 |
+| 4. Sens | La **première borne touchée** décide : haute = achat, basse = vente. Les deux bornes dans la même bougie : pas de trade. Une seule entrée par jour | `dualthrust.live_dt` |
+| 5. Entrée M5 | Attendre le **retour du prix sur la borne cassée**, puis la première confirmation M5 dans l'heure : **rejet**, **CHoCH**, **avalement** ou **fin de repli** (les deux derniers repris de stolgo). Entrée à la clôture de cette bougie | `dualthrust.live_dt` (état en direct) |
+| 6. Stop / objectif | Au-delà de la borne, minimum **or 100 ticks, BTC 130 ticks** (CHoCH : au-delà de l'extrême) ; objectif **2R** ; à plat à 1h00 | `structure.py` |
+| 7. Biais Daily | EMA 20 / 50 + fondamental affichés **pour information** : sur ce setup, ils n'améliorent rien (contre le biais aussi bon) ; l'utilisateur prend les deux sens | `bias.py` |
 | 8. Contrôle | `plan.py` (PASS/BLOCK, DLL 1 000 $, plafond 1 400 $, clôture 1h10) puis chances du plan | `plan.py`, `timemachine.py` |
-| 9. Exécution | Quantité 1, ordre limite du bon côté du marché, OCO réglé, CANCEL ORDERS actif ; plus d'entrée après 23h30, à plat avant 1h10 | TopstepX |
+| 9. Exécution | Quantité selon le risque, OCO réglé, CANCEL ORDERS actif ; plus d'entrée après 23h30, à plat avant 1h10 | TopstepX |
 
-Setups secondaires, seulement dans le sens du biais : range d'ouverture M15 (17h20 or,
-18h30 BTC), cassure + retest H1, range borne à borne (non prouvé au test).
-
-Backtest de la zone et de l'entrée (60 jours M15/M5, sens du biais, 2R) :
-| Actif | Zone + entrée | Trades | Gagnants | R par trade |
+Backtest du setup principal (une entrée par jour, frais inclus, 2R, à plat 16h NY) :
+| Échantillon | Trades par an | R par trade | t | Années positives |
 |---|---|---|---|---|
-| Or | OB + FVG, CHoCH M5 | 10 | 70 % | +0,91 |
-| Or | OB + FVG, rejet M5 / limite | 15 / 28 | 53 / 57 % | +0,58 |
-| Or | OB + FVG, H1 sur 2 ans (limite) | 54 | 50 % | +0,33 |
-| Or | Retest du point cassé, rejet M5 | 84 | 48 % | +0,25 |
-| Or | OB sans FVG (toutes entrées) | 132 | 33 % | -0,02 à -0,26 |
-| BTC | Retest du point cassé, rejet M5 | 61 | 54 % | +0,39 |
-| BTC | Retest du point cassé, fin de repli M5 (stolgo) | 93 | 59 % | +0,30 |
-| Or | Retest du point cassé, avalement M5 (stolgo) | 85 | 51 % | +0,22 |
-| BTC | OB + FVG (limite / rejet) | 35 / 9 | 34 / 22 % | -0,14 / -0,18 |
-| BTC | OB sans FVG, rejet M5 | 19 | 68 % | +0,38 (trop peu de trades) |
-Échantillons courts et période baissière : valider sur le journal de trades.
+| Or 2006-2019 | 67 | +0,05 | 2,0 | 9 / 14 |
+| Or 2020-2026 | 57 | +0,15 | 2,9 | 5 / 7 |
+| BTC 2020-2026 | 58 | +0,07 | 1,5 | 7 / 7 |
+Gain modeste ; données spot (pas les futures) ; aucune combinaison ne passe la correction
+anti-hasard la plus stricte : celle-ci n'a pour elle que sa constance sur trois échantillons.
+Le module en direct reproduit le backtest à l'identique (289 journées d'or vérifiées).
+
+Setups secondaires (méthode précédente, toujours dans le sens du biais Daily) : zone M15
+order block + FVG ou retest du point cassé avec entrée M5 (`ob.py`), range d'ouverture M15,
+cassure + retest H1, range borne à borne. Testés sur la durée, ils ne gagnent pas :
+| Setup | Or 2006-2019 | Or 2020-2026 | BTC 2020-2026 |
+|---|---|---|---|
+| OB + FVG M15, confirmations M5, avec le biais | -0,04 R | +0,04 R | -0,01 R |
+| Retest du point cassé M15, confirmations M5 | -0,02 R | 0,00 R | 0,00 R |
+| Range d'ouverture M15 (clôture M15) | -0,04 R (2006-2026) | | +0,02 R |
+Les +0,6 à +0,9 R mesurés sur 60 jours (fin 2026) venaient d'une période de forte tendance.
+Contre le biais, ces setups secondaires perdent davantage.
 
 
 ```bash

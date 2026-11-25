@@ -108,7 +108,15 @@ def main():
     last = m15.close.iloc[-1]
     a15, ah1 = atr(m15), atr(h1)
 
-    print(f"{sym} ({y})  dernier {last:.2f}  à {m15.index[-1]:%d/%m %H:%M} (La Réunion, données retardées)")
+    print(f"{sym} ({y})  dernier {last:.2f}  à {m15.index[-1]:%d/%m %H:%M} (La Réunion, {'en direct' if y.startswith('TopstepX') else 'données retardées'})")
+    if sym in ("MBT", "MET") and not y.startswith("TopstepX"):
+        try:  # le spot Yahoo (BTC-USD, ETH-USD) est en direct : prix MBT estimé = spot + écart futures/spot
+            _, sp = bars("BTC-USD" if sym == "MBT" else "ETH-USD", "5m", 1)
+            _, f5 = bars(sym, "5m", 1)  # dernière bougie 5 min des futures (retardée) comparée au spot de la même bougie
+            gap = f5.close.iloc[-1] - sp.close.asof(f5.index[-1])
+            print(f"  Prix en direct estimé : {sp.close.iloc[-1] + gap:.2f} (spot {sp.close.iloc[-1]:.2f} à {sp.index[-1]:%H:%M} + écart {gap:+.2f})")
+        except Exception:
+            pass
     tk = lambda x: int(round(x / tick))  # distance en ticks (ce que TopstepX affiche)
     dt_ = lambda px: f"{'+' if px >= last else '-'}{tk(abs(px - last))} ticks"
     print(f"Tick {tick} = {SPECS.get(sym, (0, 0))[1]:.2f} $ ; ATR M15 {a15:.2f} ({tk(a15)} ticks)  ATR H1 {ah1:.2f} ({tk(ah1)} ticks)")
@@ -337,14 +345,15 @@ def main():
             if kind.startswith(("Order block", "Retest du point")):
                 if "CONFIRMÉE" in cond:
                     lines.append("🟢 confirmation M5 obtenue")
-                lines.append("ℹ️ testé (zones M15, entrée M5, 60 j, avec le biais) : or OB + FVG CHoCH M5 +0,91 R (10 trades), rejet M5"
-                             " +0,58 R, retest + rejet M5 +0,25 R ; BTC retest + rejet M5 +0,39 R (61 trades) ; contre le biais perdant")
-                v = "CONFIRMÉ (votre méthode)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
+                lines.append("ℹ️ testé sur la durée (avec le biais, confirmations M5) : or 2006-2019 -0,04 R, or 2020-2026 +0,04 R,"
+                             " BTC 2020-2026 -0,01 R ; les +0,6 à +0,9 R des 60 derniers jours ne tiennent pas : setup secondaire")
+                v = "CONFIRMÉ (méthode zones M15, secondaire)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
                 cand.append((-2 if kind.startswith("Order") else -1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                              round(tg / tick) * tick, tname, rr, cond, lines, v))
                 return
             if kind.startswith("Range d'ouverture M15"):
-                lines.append("ℹ️ méthode testée (or, 60 jours) : avec le biais +0,36 à +0,89 R par trade, contre -0,58 R")
+                lines.append("ℹ️ testé sur la durée (clôture M15, stop 1 ATR M15) : or 2006-2026 -0,04 R, BTC 2020-2026 +0,02 R ;"
+                             " les +0,36 à +0,89 R des 60 derniers jours ne tiennent pas : setup secondaire")
                 v = "CONFIRMÉ (méthode)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
                 cand.append((-1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                              round(tg / tick) * tick, tname, rr, cond, lines, v))
@@ -394,6 +403,45 @@ def main():
     for lvl in below[:2]:
         add("Cassure + retest", "short", lvl[1], lvl[1] + sbuf, [x for x in below if x[1] < lvl[1]],
             f"clôture H1 sous {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
+    # SETUP PRINCIPAL : borne Dual Thrust + confirmation M5 (dualthrust.py), les deux sens, sans filtre de biais
+    from dualthrust import MIN_STOP_TICKS as DT_MIN, TESTED as DT_TESTED, live_dt
+    _, m5l = bars(sym, "5m", 10)
+    dmin = DT_MIN.get(sym, 0) * tick or a15
+    dts = live_dt(m5l, tick, dmin)
+    if dts:
+        print(f"\n  Dual Thrust (journée CME) : borne haute {dts['up']:.2f} ({dt_(dts['up'])}), borne basse {dts['lo']:.2f} ({dt_(dts['lo'])}),"
+              f" plage 5 j {tk(dts['rng'])} ticks ; état : {dts['status']}")
+        dlines = ["ℹ️ testé (une entrée par jour, frais inclus) : or 2006-2019 +0,05 R, or 2020-2026 +0,15 R, BTC 2020-2026 +0,07 R"
+                  " (7 années positives sur 7) ; le biais Daily ne l'améliore pas : pris dans les deux sens"]
+        if sym not in DT_TESTED:
+            dlines.append(f"⚠️ non testé sur {sym} : stop minimum = 1 ATR M15")
+        if dts["side"]:
+            dlines.append(f"{'✅' if day_bias == dts['side'] else 'ℹ️'} biais du jour {'dans le même sens' if day_bias == dts['side'] else 'différent'} (information)")
+        dsd = "long" if dts["side"] > 0 else "short"
+        if dts["status"] == "CONFIRMÉE":
+            if m5l.index[-1] - dts["t_trig"] > pd.Timedelta(minutes=10):
+                print(f"  Déjà joué : Dual Thrust {dts['trig']} à {dts['t_trig'] + pd.Timedelta(minutes=5):%H:%M}, entrée {dts['entry']:.2f},"
+                      f" stop {dts['stop']:.2f}, objectif {dts['target']:.2f} : {dts['result']}. Ne pas courir après (une entrée par jour).")
+            else:
+                cand.append((-3, "Borne Dual Thrust → entrée M5", dsd, round(dts["entry"] / tick) * tick, round(dts["stop"] / tick) * tick,
+                             round(dts["target"] / tick) * tick, "2R", 2.0,
+                             f"CONFIRMÉE par {dts['trig']} à {dts['t_trig'] + pd.Timedelta(minutes=5):%H:%M} après retour sur la borne"
+                             f" {dts['level']:.2f} ; entrée à la clôture ; si le signal date de plus d'une bougie M5, ne pas courir après",
+                             dlines, "CONFIRMÉ (setup principal)"))
+        elif dts["status"] in ("attente", "cassée") or dts["status"].startswith("retour sur la borne"):
+            sides = [(1, dts["up"]), (-1, dts["lo"])] if dts["status"] == "attente" else [(dts["side"], dts["level"])]
+            for sd_, lv_ in sides:
+                e_ = lv_
+                s_ = lv_ - sd_ * dmin
+                etat = ("attendre que le prix touche la borne (la première touchée décide du sens), " if dts["status"] == "attente" else
+                        f"borne cassée à {dts['t_break'] + pd.Timedelta(minutes=5):%H:%M}, " if dts["status"] == "cassée" else
+                        f"prix revenu sur la borne à {dts['t_retest'] + pd.Timedelta(minutes=5):%H:%M}, ")
+                cand.append((-3, "Borne Dual Thrust → entrée M5", "long" if sd_ > 0 else "short", round(e_ / tick) * tick,
+                             round(s_ / tick) * tick, round((e_ + sd_ * 2 * dmin) / tick) * tick, "2R", 2.0,
+                             etat + "puis retour sur la borne et première confirmation M5 dans le sens de la cassure, dans l'heure"
+                             " (rejet, CHoCH, avalement ou fin de repli) ; entrée à la clôture de cette bougie (prix indicatif ici) ;"
+                             f" stop au-delà de la borne (minimum {dmin / tick:.0f} ticks ; CHoCH : au-delà de l'extrême), objectif 2R",
+                             dlines, "EN ATTENTE (setup principal)"))
     # MÉTHODE DE L'UTILISATEUR : zones M15 (order block + FVG, sinon retest du point cassé), entrée sur M5
     # or : OB + FVG -> CHoCH M5 ou rejet M5 ; retest -> rejet M5.  BTC / Ether : retest -> rejet M5 (OB + FVG perdant au test)
     from ob import live_setups
@@ -445,7 +493,7 @@ def main():
                     if n >= 3 else "")
             add(f"Range {lab} borne à borne", side, b, st_, tgts,
                 f"bougie {lab} de rejet SUR la borne {b:.2f} (mèche {'haute' if side == 'short' else 'basse'}, clôture dans le range){note}")
-    cand.sort(key=lambda c: (c[0], 0 if c[1].startswith(("Order", "Retest du point")) else 1 if c[1].startswith("Cassure") else 2, -c[7]))
+    cand.sort(key=lambda c: (c[0], 0 if c[1].startswith(("Borne Dual", "Order", "Retest du point")) else 1 if c[1].startswith("Cassure") else 2, -c[7]))
     print("\n5. SETUPS : biais du jour d'abord, puis les 4 étapes en confirmation (entrée seulement après la condition)")
     shown = 0
     for (rank, kind, side, e, s, t, tname, rr, cond, lines, verdict) in cand:

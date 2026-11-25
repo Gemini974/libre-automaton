@@ -43,10 +43,14 @@ stop et objectif avant l'entrée, taille en ticks, vérification `plan.py` (PASS
 
 ## Habitudes de travail
 
-- Méthode (détail dans SKILL.md, « LA MÉTHODE ») : biais EMA 20 / 50 Daily en accord avec le
-  fondamental, sinon pas de trade ; zone M15 (or : order block + FVG, sinon retest du dernier
-  point cassé ; BTC : retest du dernier point cassé) ; entrée M5 (CHoCH ou rejet) ; stop au-delà
-  de la zone (or 100 ticks min., BTC 130), objectif 2R. Outils : `scan.py`, `structure.py`.
+- Méthode (détail dans SKILL.md, « LA MÉTHODE ») : setup principal = borne Dual Thrust du jour
+  (ouverture CME ± 0,5 x plage 5 jours), première borne touchée, retour sur la borne puis
+  confirmation M5 (rejet, CHoCH, avalement ou fin de repli), les deux sens ; stop au-delà de la
+  borne (or 100 ticks min., BTC 130), objectif 2R, une entrée par jour. Biais EMA 20 / 50 et
+  fondamental affichés pour information. Méthode précédente (zones M15 order block + FVG ou
+  retest, sens du biais) en setup secondaire. Outils : `structure.py`, `dualthrust.py`, `scan.py`.
+- Données : les futures sur Yahoo ont environ 10 min de retard (BTC-USD spot est en direct).
+  Données en direct de l'or : API TopstepX (ProjectX), avec la clé de l'utilisateur.
 - Toujours donner : biais (Daily, H4), niveaux, setups avec entrée, stop, objectif,
   bracket en ticks, taille et risque en $, fenêtre horaire, et ce qui invalide.
 - Trader avec ou sans liquidité : sans niveau de liquidité, objectif 2R. Une liquidité

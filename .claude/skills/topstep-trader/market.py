@@ -30,6 +30,15 @@ SESSION_KEYS = {"asia": 0, "london": 1, "comex": 2, "nymex": 3, "ny": 4}
 
 
 def bars(sym, interval="15m", days=5):
+    # données en direct TopstepX si la clé API de l'utilisateur est configurée (sinon Yahoo, retardé)
+    from topstepx import UNITS, available
+    from plan import SPECS
+    if available() and sym.upper() in SPECS and interval in UNITS:
+        try:
+            from topstepx import bars as tsx_bars
+            return tsx_bars(sym.upper(), interval, days)
+        except Exception as ex:
+            print(f"TopstepX indisponible ({ex.__class__.__name__}) : Yahoo retardé utilisé", file=sys.stderr)
     from openbb import obb  # imported late so --help works without OpenBB
     y = YAHOO.get(sym.upper(), sym)
     start = (datetime.now(UTC) - timedelta(days=days)).date().isoformat()
@@ -63,7 +72,7 @@ def cmd_levels(a):
     t = df[df.index.date == today]
     p = df[df.index.date < today]
     pd_ = p[p.index.date == p.index[-1].date()] if len(p) else p
-    print(f"{a.symbol.upper()} ({y}), dernière bougie 15m {df.index[-1]:%d/%m %H:%M} (La Réunion), données retardées")
+    print(f"{a.symbol.upper()} ({y}), dernière bougie 15m {df.index[-1]:%d/%m %H:%M} (La Réunion), {'en direct' if y.startswith('TopstepX') else 'données retardées'}")
     print(f"  Dernier       {last.close:.2f}")
     print(f"  Aujourd'hui   haut {t.high.max():.2f}  bas {t.low.min():.2f}")
     if len(pd_):
