@@ -100,8 +100,8 @@ def find_setups(df, side, n=2, lookback=120, upto=None, keep_touched=False, ob_o
 
 RULES = {  # règles testées (zones M15, entrée M5, 60 jours) ; défaut = or
     "or": {"kinds": ("Order block + FVG", "Retest du point cassé"),
-           "confirm": {"Order block + FVG": ("CHoCH M5", "rejet M5"), "Retest du point cassé": ("rejet M5",)}},
-    "crypto": {"kinds": ("Retest du point cassé",), "confirm": {"Retest du point cassé": ("rejet M5",)}},
+           "confirm": {"Order block + FVG": ("CHoCH M5", "rejet M5"), "Retest du point cassé": ("rejet M5", "avalement M5")}},
+    "crypto": {"kinds": ("Retest du point cassé",), "confirm": {"Retest du point cassé": ("rejet M5", "fin de repli M5")}},
 }
 
 
@@ -151,6 +151,17 @@ def live_setups(m15, m5, side, group="or", buf=0.0, now=None):
                     break
                 if "rejet M5" in st["confirm"] and touched and rej:
                     st.update(status="CONFIRMÉE", trig="rejet M5", t_trig=x.index[m], entry=C[m])
+                    break
+                # déclencheurs repris de stolgo (testés dans nos zones M15)
+                if "avalement M5" in st["confirm"] and m > 0 and (
+                        (C[m-1] > O[m-1] and C[m] < O[m] and O[m] >= C[m-1] and C[m] <= O[m-1]) if side < 0 else
+                        (C[m-1] < O[m-1] and C[m] > O[m] and O[m] <= C[m-1] and C[m] >= O[m-1])):
+                    st.update(status="CONFIRMÉE", trig="avalement M5", t_trig=x.index[m], entry=C[m])
+                    break
+                if "fin de repli M5" in st["confirm"] and m >= 3 and all(
+                        (C[q] > O[q]) if side < 0 else (C[q] < O[q]) for q in (m-3, m-2, m-1)) and \
+                        ((C[m] < O[m]) if side < 0 else (C[m] > O[m])):
+                    st.update(status="CONFIRMÉE", trig="fin de repli M5", t_trig=x.index[m], entry=C[m])
                     break
             else:
                 if len(x) - j > 12:

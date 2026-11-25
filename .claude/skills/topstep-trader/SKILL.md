@@ -34,7 +34,7 @@ plupart des gens, et un plan propre n'y change rien.
 | 3. Calendrier | Pas d'entrée 15 min avant ou après une annonce majeure (PCE, CPI, Fed...) | `av.py`, `market.py macro`, recherche web |
 | 4. Tendance | HMA 21 H1 et H4 : alignées = confirmé ; mixte = prudence ; contre = à éviter | `structure.py` section 1 |
 | 5. Zone M15 | **Or : order block + FVG uniquement** (OB sans FVG ignoré : -0,02 R en M15, -0,12 R en H1) ; sans FVG, **retest du dernier point cassé**. **BTC / Ether : retest du dernier point cassé** (OB + FVG perdant sur le BTC). Seulement la cassure la plus récente. | `ob.py`, `structure.py` setup n° 1 |
-| 6. Entrée M5 | Or OB + FVG : **CHoCH M5** ou **rejet M5** (limite possible) ; retest : **rejet M5** ; BTC : **rejet M5** | `ob.live_setups` (état en direct) |
+| 6. Entrée M5 | Or OB + FVG : **CHoCH M5** ou **rejet M5** (limite possible) ; or retest : **rejet M5** ou **avalement M5** ; BTC retest : **rejet M5** ou **fin de repli M5** (3 bougies contre le biais puis une dans le sens, repris de stolgo) | `ob.live_setups` (état en direct) |
 | 7. Stop / objectif | Au-delà de la zone, minimum **or 100 ticks, BTC 130 ticks** ; objectif **2R**, ou la liquidité si elle existe (avec ou sans liquidité) | `structure.py` |
 | 8. Contrôle | `plan.py` (PASS/BLOCK, DLL 1 000 $, plafond 1 400 $, clôture 1h10) puis chances du plan | `plan.py`, `timemachine.py` |
 | 9. Exécution | Quantité 1, ordre limite du bon côté du marché, OCO réglé, CANCEL ORDERS actif ; plus d'entrée après 23h30, à plat avant 1h10 | TopstepX |
@@ -51,6 +51,8 @@ Backtest de la zone et de l'entrée (60 jours M15/M5, sens du biais, 2R) :
 | Or | Retest du point cassé, rejet M5 | 84 | 48 % | +0,25 |
 | Or | OB sans FVG (toutes entrées) | 132 | 33 % | -0,02 à -0,26 |
 | BTC | Retest du point cassé, rejet M5 | 61 | 54 % | +0,39 |
+| BTC | Retest du point cassé, fin de repli M5 (stolgo) | 93 | 59 % | +0,30 |
+| Or | Retest du point cassé, avalement M5 (stolgo) | 85 | 51 % | +0,22 |
 | BTC | OB + FVG (limite / rejet) | 35 / 9 | 34 / 22 % | -0,14 / -0,18 |
 | BTC | OB sans FVG, rejet M5 | 19 | 68 % | +0,38 (trop peu de trades) |
 Échantillons courts et période baissière : valider sur le journal de trades.
@@ -451,6 +453,19 @@ sur la borne, stop au-delà de la mèche)** :
   casse la borne plus souvent qu'il ne rejoint la borne opposée (38 % contre
   24 % sur l'or H1). Exception à surveiller : or M15 4e touche, borne opposée
   d'abord dans 50 % des cas (14 cas seulement).
+
+## Dépôt stockalgo/stolgo (price action, testé sur l'or et le BTC)
+
+Vocabulaire price action (niveaux, relations, figures, presets). Règles seules, avec le
+biais, stop sous la bougie (min or 100 / BTC 130 ticks), 2R, sortie 1h : les positives
+sont presque toutes des ventes (fade après 3 bougies vertes +0,28 à +0,31 R sur l'or,
+avalement baissier +0,25 R, cassure du plus bas de la veille +0,28 R), les achats
+font -0,08 R en moyenne : effet de la baisse de la période et de la dérive intraday
+négative de l'or et du BTC. Comme déclencheurs M5 dans nos zones M15 : fin de repli
+utile sur le BTC (+0,30 R, 93 trades, t = 2,7), avalement utile sur le retest de l'or
+(+0,22 R) ; ni l'un ni l'autre ne bat le CHoCH ou le rejet sur l'OB + FVG de l'or.
+Pour un backtest ponctuel : `sys.path` vers `stolgo/lib`, `import stolgo.pa as pa`,
+`rule.series(df)` donne le signal sans regarder le futur (dépendance : plotly).
 
 ## Dépôt je-suis-tm/quant-trading (testé sur l'or H1)
 
