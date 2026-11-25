@@ -286,7 +286,8 @@ def main():
     _, m5 = bars(sym, "5m", 2)
     t5 = m5.index.tz_convert(NY)
     end = time(hh, mm + 15) if mm + 15 < 60 else time(hh + 1, mm - 45)
-    orb = m5[(t5.date == t5[-1].date()) & (t5.time >= time(hh, mm)) & (t5.time < end)]
+    cd5 = (t5 + pd.Timedelta(hours=6)).date  # journée CME (la séance commence à 18h NY = 3h La Réunion)
+    orb = m5[(cd5 == cd5[-1]) & (t5.time >= time(hh, mm)) & (t5.time < end)]
     or_txt = f"{(pd.Timestamp('2000-01-01 ' + f'{hh}:{mm:02d}').tz_localize(NY).tz_convert(m15.index.tz)):%Hh%M}"
 
     def confirm(side):
