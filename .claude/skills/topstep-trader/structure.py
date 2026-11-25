@@ -317,6 +317,11 @@ def main():
 
     def add(kind, side, entry, stop, targets, cond):
         risk = abs(entry - stop)
+        # le prix va où il a décidé d'aller, avec ou sans liquidité : sans niveau à 1,5R ou plus,
+        # l'objectif devient 2R (les niveaux proches restent signalés comme obstacles)
+        dd = 1 if side == "long" else -1
+        if not any(abs(tg - entry) / risk >= 1.5 for _, tg in targets):
+            targets = list(targets) + [("2R, sans liquidité visible", entry + dd * 2 * risk)]
         for j, (tname, tg) in enumerate(targets):
             rr = abs(tg - entry) / risk
             if rr < 1.5:
@@ -324,7 +329,7 @@ def main():
             if j:
                 cond += " ; obstacles avant l'objectif : " + ", ".join(f"{x[1]:.2f}" for x in targets[:j]) + " (sortie partielle possible)"
             t_ok, ph_ok, lines = confirm(side)
-            lines.append(f"✅ 4. objectif sur la liquidité : {tg:.2f} ({tname}), {rr:.1f} R")
+            lines.append(f"{'ℹ️' if 'sans liquidité' in tname else '✅'} 4. objectif : {tg:.2f} ({tname}), {rr:.1f} R")
             if day_bias != d_(side):
                 cand.append((3, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                              round(tg / tick) * tick, tname, rr, cond, lines, "À ÉVITER (biais du jour)"))

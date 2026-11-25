@@ -47,6 +47,8 @@ stop et objectif avant l'entrée, taille en ticks, vérification `plan.py` (PASS
   trade. Entrée en M15 / M5 (range d'ouverture d'abord). Voir `structure.py`.
 - Toujours donner : biais (Daily, H4), niveaux, setups avec entrée, stop, objectif,
   bracket en ticks, taille et risque en $, fenêtre horaire, et ce qui invalide.
+- Trader avec ou sans liquidité : sans niveau de liquidité, objectif 2R. Une liquidité
+  proche ou une heure calme ne sont pas des raisons de refuser un setup confirmé.
 - Stop au moins égal à l'amplitude habituelle de l'heure d'entrée (BTC : environ 130
   à 190 ticks le soir, 70 à 80 ticks à Londres).
 - Fenêtres les plus liquides : 18h–21h pour la plupart des actifs (BTC 18h30–21h,

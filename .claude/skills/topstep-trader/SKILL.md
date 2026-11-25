@@ -273,7 +273,10 @@ le marché, il ne prédit pas la direction.
    moins 2 ATR), retracement (contre la tendance, entre 25 et 85 % de la
    jambe), accumulation (range après une baisse) ou distribution (range après
    une hausse), sinon transition. En expansion : ne pas courir après le prix.
-4. **Liquidité** : sommets et creux H1 non pris, sommets ou creux égaux,
+4. **Liquidité** (règle de l'utilisateur : on trade avec ou sans liquidité ; le prix
+   va dans le sens qu'il a choisi. La liquidité sert d'objectif quand elle existe,
+   sinon l'objectif est 2R ; un niveau proche est un obstacle, jamais un refus) :
+   sommets et creux H1 non pris, sommets ou creux égaux,
    veille, Asie (3h-9h), Londres (11h-14h) ; au-dessus = stops des vendeurs,
    en dessous = stops des acheteurs ; ce qui a déjà été pris aujourd'hui ;
    cible probable dans le sens de la tendance.
