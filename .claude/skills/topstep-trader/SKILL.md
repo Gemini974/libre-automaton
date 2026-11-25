@@ -237,8 +237,11 @@ machine à remonter le temps → taille et risque → alertes) :
 2. **S'il n'y a pas de FVG : entrée sur le retest du dernier point bas (ou haut)
    récemment cassé**, stop au-delà du dernier sommet (ou creux) avant la cassure.
 Seulement la cassure la plus récente, seulement dans le sens du biais du jour.
-Test sur l'or : OB + FVG M15 avec le biais +0,24 R par trade (60 jours), contre le
-biais -0,26 R ; retest contre le biais -0,28 R ; en M5, stops trop serrés (-0,25 R).
+Stop minimum : or 100 ticks, BTC 130 ticks (sans lui, les stops d'OB sont trop serrés).
+Backtest (M15, 60 jours, sens du biais, stop minimum, 2R, sortie 1h) : or OB + FVG +0,58 R
+par trade, 57 % gagnants, 28 trades (t = 2,1), contre le biais -0,34 R ; or retest +0,03 R ;
+BTC les deux règles +0,16 R (190 trades, t = 2,0). Perdant : M5 (or -0,30 R, BTC -0,34 R),
+retest contre le biais (-0,28 R), BTC en H1 (-0,12 R). Échantillons courts : à confirmer.
 
 ## Méthode du jour : biais Daily + entrée M15 / M5 (`structure.py`, section 0 et setup n° 1)
 

@@ -335,8 +335,8 @@ def main():
                              round(tg / tick) * tick, tname, rr, cond, lines, "À ÉVITER (biais du jour)"))
                 return
             if kind.startswith(("Order block", "Retest du point")):
-                lines.append("ℹ️ méthode de l'utilisateur, testée sur l'or : OB + FVG M15 dans le sens du biais +0,24 R par trade"
-                             " (35 trades, 60 j), contre le biais -0,26 R ; retest contre le biais -0,28 R ; en M5 les stops sont trop serrés")
+                lines.append("ℹ️ méthode de l'utilisateur, testée (M15, 60 j, stop min. or 100 ticks / BTC 130) : or OB + FVG avec le biais"
+                             " +0,58 R (28 trades), contre -0,34 R ; BTC les deux règles +0,16 R ; M5 et retest contre le biais perdants")
                 v = "CONFIRMÉ (votre méthode)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
                 cand.append((-2 if kind.startswith("Order") else -1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                              round(tg / tick) * tick, tname, rr, cond, lines, v))
@@ -398,6 +398,9 @@ def main():
         sdn = "short" if sd_ < 0 else "long"
         for z in find_setups(m15, sd_)[:2]:
             stp = z["far"] + 0.1 * a15 if sd_ < 0 else z["far"] - 0.1 * a15
+            mn = {"MGC": 100, "MBT": 130, "MET": 130}.get(sym, 0) * tick  # stop minimum testé : or 100 ticks, BTC 130 ticks
+            if abs(stp - z["entry"]) < mn:
+                stp = z["entry"] - sd_ * mn
             liq = below if sd_ < 0 else above
             fv = f", FVG {z['fvg'][0]:.2f}-{z['fvg'][1]:.2f}" if z["fvg"] else ""
             rk_ = abs(z["entry"] - stp)
