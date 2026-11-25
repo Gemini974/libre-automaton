@@ -227,6 +227,19 @@ machine à remonter le temps → taille et risque → alertes) :
 | trader-budget + trader-risk | `plan.py` | taille en ticks, DLL 1 000 $, plafond de gain 1 400 $, clôture 1h10, annonces |
 | trader-alerts | alertes TradingView sur entrée, stop, objectif ; analyses programmées | rappel 23h30 : plus d'entrée ; 1h00 : à plat |
 
+## Entrée de l'utilisateur : order block + FVG (`ob.py`, setup n° 1 de `structure.py`)
+
+1. **Order block + FVG dans le sens du biais.** Après une cassure de structure en M15
+   (clôture au-delà du dernier creux ou sommet), l'order block est la dernière bougie
+   de couleur opposée avant la jambe qui a cassé ; la jambe doit contenir un FVG.
+   **On entre quand le prix revient dans l'order block** (ordre limite sur le bord du
+   corps), stop juste au-delà de l'OB, objectif 2R. Un OB déjà touché a été joué.
+2. **S'il n'y a pas de FVG : entrée sur le retest du dernier point bas (ou haut)
+   récemment cassé**, stop au-delà du dernier sommet (ou creux) avant la cassure.
+Seulement la cassure la plus récente, seulement dans le sens du biais du jour.
+Test sur l'or : OB + FVG M15 avec le biais +0,24 R par trade (60 jours), contre le
+biais -0,26 R ; retest contre le biais -0,28 R ; en M5, stops trop serrés (-0,25 R).
+
 ## Méthode du jour : biais Daily + entrée M15 / M5 (`structure.py`, section 0 et setup n° 1)
 
 1. **Biais technique** : EMA 20 Daily au-dessus de l'EMA 50 Daily = achats

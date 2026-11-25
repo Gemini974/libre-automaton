@@ -69,19 +69,22 @@ def find_setups(df, side, n=2, lookback=120, upto=None, keep_touched=False):
                     break
         after = slice(k + 1, end + 1)
         if ob is not None and fvg is not None:
+            # règle 1 : order block + FVG ; entrée au retour dans l'OB. Un OB déjà touché a été joué.
             prox = o[ob]                       # bas du corps (vente) / haut du corps (achat)
             dist = h[ob] if side < 0 else lo[ob]
             touched = (h[after] >= prox).any() if side < 0 else (lo[after] <= prox).any()
             if keep_touched or not touched:
                 out.append(dict(kind="Order block + FVG", t=df.index[ob], bos=df.index[k], entry=prox, far=dist,
                                 fvg=fvg, level=lvl, k=k))
-                continue
-        # sinon : retest du point cassé, s'il n'a pas encore été retesté
+            continue
+        # règle 2 : pas de FVG -> retest du point cassé, s'il n'a pas encore été retesté
         touched = (h[after] >= lvl).any() if side < 0 else (lo[after] <= lvl).any()
         if (keep_touched or not touched) and prev_opp:
             out.append(dict(kind="Retest du point cassé", t=df.index[p], bos=df.index[k], entry=lvl,
                             far=h[prev_opp[-1]] if side < 0 else lo[prev_opp[-1]], fvg=None, level=lvl, k=k))
     seen, uniq = set(), []
+    if not keep_touched:  # seulement le dernier point récemment cassé (la cassure la plus récente)
+        out = [x for x in out if x["k"] == max(y["k"] for y in out)] if out else out
     for x in sorted(out, key=lambda x: -x["k"]):
         key = (x["kind"], x["t"])
         if key not in seen:
