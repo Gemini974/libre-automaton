@@ -31,7 +31,7 @@ def swings(h, lo, n=2):
     return sh, sl
 
 
-def find_setups(df, side, n=2, lookback=120, upto=None, keep_touched=False):
+def find_setups(df, side, n=2, lookback=120, upto=None, keep_touched=False, ob_only=False):
     """Zones valables à la bougie `upto` (incluse), sans regarder après.
     side = -1 vente, +1 achat. Renvoie une liste de dicts triés du plus récent au plus ancien."""
     o, h, lo, c = (df[k].values for k in ("open", "high", "low", "close"))
@@ -68,6 +68,11 @@ def find_setups(df, side, n=2, lookback=120, upto=None, keep_touched=False):
                     fvg = (h[j - 2], lo[j])
                     break
         after = slice(k + 1, end + 1)
+        if ob_only:  # tous les order blocks, avec ou sans FVG (pour comparer)
+            if ob is not None:
+                out.append(dict(kind="Order block + FVG" if fvg else "Order block sans FVG", t=df.index[ob], bos=df.index[k],
+                                entry=o[ob], far=h[ob] if side < 0 else lo[ob], fvg=fvg, level=lvl, k=k))
+            continue
         if ob is not None and fvg is not None:
             # règle 1 : order block + FVG ; entrée au retour dans l'OB. Un OB déjà touché a été joué.
             prox = o[ob]                       # bas du corps (vente) / haut du corps (achat)
