@@ -25,6 +25,37 @@ plupart des gens, et un plan propre n'y change rien.
 
 `${CLAUDE_SKILL_DIR}` est le dossier de ce SKILL.md.
 
+## LA MÉTHODE, dans l'ordre (tout le reste de ce fichier la détaille)
+
+| Étape | Règle | Outil |
+|---|---|---|
+| 1. Biais du jour | EMA 20 / EMA 50 Daily **et** fondamental d'accord ; désaccord = pas de trade ; jamais contre le biais (testé perdant partout, -0,2 à -0,4 R) | `bias.py`, `structure.py` section 0 |
+| 2. Actif | Contrats Topstep classés par biais, HMA, risque d'un stop, volume ; pas de positions corrélées | `scan.py` |
+| 3. Calendrier | Pas d'entrée 15 min avant ou après une annonce majeure (PCE, CPI, Fed...) | `av.py`, `market.py macro`, recherche web |
+| 4. Tendance | HMA 21 H1 et H4 : alignées = confirmé ; mixte = prudence ; contre = à éviter | `structure.py` section 1 |
+| 5. Zone M15 | **Or : order block + FVG uniquement** (OB sans FVG ignoré : -0,02 R en M15, -0,12 R en H1) ; sans FVG, **retest du dernier point cassé**. **BTC / Ether : retest du dernier point cassé** (OB + FVG perdant sur le BTC). Seulement la cassure la plus récente. | `ob.py`, `structure.py` setup n° 1 |
+| 6. Entrée M5 | Or OB + FVG : **CHoCH M5** ou **rejet M5** (limite possible) ; retest : **rejet M5** ; BTC : **rejet M5** | `ob.live_setups` (état en direct) |
+| 7. Stop / objectif | Au-delà de la zone, minimum **or 100 ticks, BTC 130 ticks** ; objectif **2R**, ou la liquidité si elle existe (avec ou sans liquidité) | `structure.py` |
+| 8. Contrôle | `plan.py` (PASS/BLOCK, DLL 1 000 $, plafond 1 400 $, clôture 1h10) puis chances du plan | `plan.py`, `timemachine.py` |
+| 9. Exécution | Quantité 1, ordre limite du bon côté du marché, OCO réglé, CANCEL ORDERS actif ; plus d'entrée après 23h30, à plat avant 1h10 | TopstepX |
+
+Setups secondaires, seulement dans le sens du biais : range d'ouverture M15 (17h20 or,
+18h30 BTC), cassure + retest H1, range borne à borne (non prouvé au test).
+
+Backtest de la zone et de l'entrée (60 jours M15/M5, sens du biais, 2R) :
+| Actif | Zone + entrée | Trades | Gagnants | R par trade |
+|---|---|---|---|---|
+| Or | OB + FVG, CHoCH M5 | 10 | 70 % | +0,91 |
+| Or | OB + FVG, rejet M5 / limite | 15 / 28 | 53 / 57 % | +0,58 |
+| Or | OB + FVG, H1 sur 2 ans (limite) | 54 | 50 % | +0,33 |
+| Or | Retest du point cassé, rejet M5 | 84 | 48 % | +0,25 |
+| Or | OB sans FVG (toutes entrées) | 132 | 33 % | -0,02 à -0,26 |
+| BTC | Retest du point cassé, rejet M5 | 61 | 54 % | +0,39 |
+| BTC | OB + FVG (limite / rejet) | 35 / 9 | 34 / 22 % | -0,14 / -0,18 |
+| BTC | OB sans FVG, rejet M5 | 19 | 68 % | +0,38 (trop peu de trades) |
+Échantillons courts et période baissière : valider sur le journal de trades.
+
+
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/plan.py" sessions                       # horaires du jour, heure de La Réunion
 python3 "${CLAUDE_SKILL_DIR}/plan.py" plan --symbol MBT --side short \

@@ -43,8 +43,10 @@ stop et objectif avant l'entrée, taille en ticks, vérification `plan.py` (PASS
 
 ## Habitudes de travail
 
-- Biais du jour : EMA 20 / EMA 50 Daily, en accord avec le fondamental, sinon pas de
-  trade. Entrée en M15 / M5 (range d'ouverture d'abord). Voir `structure.py`.
+- Méthode (détail dans SKILL.md, « LA MÉTHODE ») : biais EMA 20 / 50 Daily en accord avec le
+  fondamental, sinon pas de trade ; zone M15 (or : order block + FVG, sinon retest du dernier
+  point cassé ; BTC : retest du dernier point cassé) ; entrée M5 (CHoCH ou rejet) ; stop au-delà
+  de la zone (or 100 ticks min., BTC 130), objectif 2R. Outils : `scan.py`, `structure.py`.
 - Toujours donner : biais (Daily, H4), niveaux, setups avec entrée, stop, objectif,
   bracket en ticks, taille et risque en $, fenêtre horaire, et ce qui invalide.
 - Trader avec ou sans liquidité : sans niveau de liquidité, objectif 2R. Une liquidité
