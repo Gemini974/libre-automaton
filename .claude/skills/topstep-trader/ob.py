@@ -93,6 +93,67 @@ def find_setups(df, side, n=2, lookback=120, upto=None, keep_touched=False):
     return uniq
 
 
+RULES = {  # règles testées (zones M15, entrée M5, 60 jours) ; défaut = or
+    "or": {"kinds": ("Order block + FVG", "Retest du point cassé"),
+           "confirm": {"Order block + FVG": ("CHoCH M5", "rejet M5"), "Retest du point cassé": ("rejet M5",)}},
+    "crypto": {"kinds": ("Retest du point cassé",), "confirm": {"Retest du point cassé": ("rejet M5",)}},
+}
+
+
+def live_setups(m15, m5, side, group="or", buf=0.0, now=None):
+    """Zone M15 la plus récente selon les règles, et son état en M5 :
+    attente (prix pas encore revenu), dans la zone (attendre la confirmation), CONFIRMÉE, invalidée, expirée."""
+    import pandas as pd
+    rule = RULES.get(group, RULES["or"])
+    zones = [z for z in find_setups(m15, side, lookback=200, keep_touched=True) if z["kind"] in rule["kinds"]]
+    if not zones:
+        return []
+    out = []
+    for kind in rule["kinds"]:
+        zk = [z for z in zones if z["kind"] == kind]
+        if not zk:
+            continue
+        z = max(zk, key=lambda x: x["k"])
+        t_ready = m15.index[z["k"]] + pd.Timedelta(minutes=15)
+        prox, far = z["entry"], z["far"]
+        stop_zone = far + buf if side < 0 else far - buf
+        x = m5[m5.index >= t_ready]
+        if len(x) > 1:
+            x = x.iloc[:-1]  # la dernière bougie M5 peut être en cours
+        O, H, Lo, C = (x[c].values for c in ("open", "high", "low", "close"))
+        hit = np.where((H >= prox) if side < 0 else (Lo <= prox))[0]
+        st = dict(z, stop=stop_zone, status="attente", confirm=rule["confirm"][kind], trig=None, t_trig=None, choch=None)
+        if len(hit):
+            j = hit[0]
+            st["t_touch"] = x.index[j]
+            ext = H[j] if side < 0 else Lo[j]
+            base = Lo[max(j - 3, 0):j + 1].min() if side < 0 else H[max(j - 3, 0):j + 1].max()
+            st["choch"] = base
+            st["status"] = "dans la zone"
+            for m in range(j, min(j + 12, len(x))):
+                if (C[m] > stop_zone) if side < 0 else (C[m] < stop_zone):
+                    st["status"] = "invalidée"
+                    break
+                ext = max(ext, H[m]) if side < 0 else min(ext, Lo[m])
+                rng = H[m] - Lo[m] or 1e-9
+                touched = (H[m] >= prox) if side < 0 else (Lo[m] <= prox)
+                rej = (C[m] < prox and (H[m] - max(O[m], C[m])) / rng >= .4) if side < 0 else \
+                      (C[m] > prox and (min(O[m], C[m]) - Lo[m]) / rng >= .4)
+                lvl = Lo[max(j - 3, 0):m].min() if side < 0 else H[max(j - 3, 0):m].max()
+                if "CHoCH M5" in st["confirm"] and m > j and ((C[m] < lvl) if side < 0 else (C[m] > lvl)):
+                    st.update(status="CONFIRMÉE", trig="CHoCH M5", t_trig=x.index[m], entry=C[m],
+                              stop=ext + buf if side < 0 else ext - buf)
+                    break
+                if "rejet M5" in st["confirm"] and touched and rej:
+                    st.update(status="CONFIRMÉE", trig="rejet M5", t_trig=x.index[m], entry=C[m])
+                    break
+            else:
+                if len(x) - j > 12:
+                    st["status"] = "expirée (pas de confirmation en 1 h)"
+        out.append(st)
+    return out
+
+
 def main():
     from market import atr, bars
     from bias import daily_bias

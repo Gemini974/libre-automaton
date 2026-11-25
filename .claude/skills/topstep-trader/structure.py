@@ -335,8 +335,10 @@ def main():
                              round(tg / tick) * tick, tname, rr, cond, lines, "À ÉVITER (biais du jour)"))
                 return
             if kind.startswith(("Order block", "Retest du point")):
-                lines.append("ℹ️ méthode de l'utilisateur, testée (M15, 60 j, stop min. or 100 ticks / BTC 130) : or OB + FVG avec le biais"
-                             " +0,58 R (28 trades), contre -0,34 R ; BTC les deux règles +0,16 R ; M5 et retest contre le biais perdants")
+                if "CONFIRMÉE" in cond:
+                    lines.append("🟢 confirmation M5 obtenue")
+                lines.append("ℹ️ testé (zones M15, entrée M5, 60 j, avec le biais) : or OB + FVG CHoCH M5 +0,91 R (10 trades), rejet M5"
+                             " +0,58 R, retest + rejet M5 +0,25 R ; BTC retest + rejet M5 +0,39 R (61 trades) ; contre le biais perdant")
                 v = "CONFIRMÉ (votre méthode)" + ("" if t_ok == "ok" else " ; HMA H1/H4 pas alignée")
                 cand.append((-2 if kind.startswith("Order") else -1, kind, side, round(entry / tick) * tick, round(stop / tick) * tick,
                              round(tg / tick) * tick, tname, rr, cond, lines, v))
@@ -392,21 +394,46 @@ def main():
     for lvl in below[:2]:
         add("Cassure + retest", "short", lvl[1], lvl[1] + sbuf, [x for x in below if x[1] < lvl[1]],
             f"clôture H1 sous {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
-    # MÉTHODE DE L'UTILISATEUR : order block + FVG (M15), sinon retest du dernier point cassé
-    from ob import find_setups
+    # MÉTHODE DE L'UTILISATEUR : zones M15 (order block + FVG, sinon retest du point cassé), entrée sur M5
+    # or : OB + FVG -> CHoCH M5 ou rejet M5 ; retest -> rejet M5.  BTC / Ether : retest -> rejet M5 (OB + FVG perdant au test)
+    from ob import live_setups
+    grp = "crypto" if sym in ("MBT", "MET") else "or"
+    mn = {"MGC": 100, "MBT": 130, "MET": 130}.get(sym, 0) * tick  # stop minimum testé
     for sd_ in ([day_bias] if day_bias else [-1, 1]):
         sdn = "short" if sd_ < 0 else "long"
-        for z in find_setups(m15, sd_)[:2]:
-            stp = z["far"] + 0.1 * a15 if sd_ < 0 else z["far"] - 0.1 * a15
-            mn = {"MGC": 100, "MBT": 130, "MET": 130}.get(sym, 0) * tick  # stop minimum testé : or 100 ticks, BTC 130 ticks
+        for z in live_setups(m15, m5, sd_, grp, buf=0.1 * a15):
+            if z["status"].startswith(("invalidée", "expirée")):
+                print(f"  Zone {z['kind']} M15 ({z['entry']:.2f}) : {z['status']}")
+                continue
+            stp = z["stop"]
             if abs(stp - z["entry"]) < mn:
                 stp = z["entry"] - sd_ * mn
-            liq = below if sd_ < 0 else above
-            fv = f", FVG {z['fvg'][0]:.2f}-{z['fvg'][1]:.2f}" if z["fvg"] else ""
             rk_ = abs(z["entry"] - stp)
-            add(f"{z['kind']} M15", sdn, z["entry"], stp, [("2R", z["entry"] + sd_ * 2 * rk_)],
-                f"retour du prix dans la zone (bougie {z['t']:%d/%m %H:%M}, cassure à {z['bos']:%H:%M}{fv}) ; ordre limite à l'entrée,"
-                " stop au-delà de la zone, objectif 2R ou liquidité")
+            if z["status"] == "CONFIRMÉE" and m5.index[-1] - z["t_trig"] > pd.Timedelta(minutes=10):
+                tg_ = z["entry"] + sd_ * 2 * rk_
+                after = m5[m5.index > z["t_trig"]]
+                hs = after.index[(after.high >= stp) if sd_ < 0 else (after.low <= stp)]
+                ht = after.index[(after.low <= tg_) if sd_ < 0 else (after.high >= tg_)]
+                res = ("objectif 2R atteint" if len(ht) and (not len(hs) or ht[0] < hs[0]) else
+                       "stop touché" if len(hs) else "toujours en cours")
+                print(f"  Déjà joué : {z['kind']} M15 confirmé par {z['trig']} à {z['t_trig'] + pd.Timedelta(minutes=5):%H:%M}, "
+                      f"entrée {z['entry']:.2f}, stop {stp:.2f}, objectif {tg_:.2f} : {res}. Ne pas courir après.")
+                continue
+            fv = f", FVG {z['fvg'][0]:.2f}-{z['fvg'][1]:.2f}" if z["fvg"] else ""
+            conf = " ou ".join(z["confirm"])
+            if z["status"] == "CONFIRMÉE":
+                etat = (f"CONFIRMÉE par {z['trig']} à {z['t_trig'] + pd.Timedelta(minutes=5):%H:%M} : entrée à la clôture {z['entry']:.2f}"
+                        " (si le signal date de plus d'une bougie M5, c'est un autre trade : ne pas courir après)")
+            elif z["status"] == "dans la zone":
+                lv = z["choch"]
+                etat = (f"prix DANS la zone depuis {z['t_touch']:%H:%M} : attendre la confirmation M5 ({conf})"
+                        + (f" ; CHoCH = clôture M5 {'sous' if sd_ < 0 else 'au-dessus de'} {lv:.2f}" if "CHoCH M5" in z["confirm"] else ""))
+            else:
+                etat = f"attendre le retour du prix dans la zone, puis la confirmation M5 ({conf})"
+            add(f"{z['kind']} M15 → entrée M5", sdn, z["entry"], stp, [("2R", z["entry"] + sd_ * 2 * rk_)],
+                f"zone M15 (bougie {z['t']:%d/%m %H:%M}, cassure à {z['bos']:%H:%M}{fv}) ; {etat} ; stop au-delà de la zone"
+                f" (minimum {mn / tick:.0f} ticks), objectif 2R")
+
     # range borne à borne : vente sur la borne haute, achat sur la borne basse, après une bougie de rejet sur la borne
     for lab, hi_r, lo_r, nt_h, nt_l, at in ranges[:1]:
         buf = max(0.25 * at, MIN_STOP_TICKS.get(sym, 10) * tick)

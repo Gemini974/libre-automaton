@@ -227,7 +227,22 @@ machine à remonter le temps → taille et risque → alertes) :
 | trader-budget + trader-risk | `plan.py` | taille en ticks, DLL 1 000 $, plafond de gain 1 400 $, clôture 1h10, annonces |
 | trader-alerts | alertes TradingView sur entrée, stop, objectif ; analyses programmées | rappel 23h30 : plus d'entrée ; 1h00 : à plat |
 
-## Entrée de l'utilisateur : order block + FVG (`ob.py`, setup n° 1 de `structure.py`)
+## Entrée de l'utilisateur : zones M15, entrée M5 (`ob.py`, setup n° 1 de `structure.py`)
+
+Règles retenues après backtest (zones M15, entrée M5, 60 jours, sens du biais, stop
+minimum or 100 ticks / BTC 130, objectif 2R) :
+- **Or** : order block + FVG M15, entrée sur **CHoCH M5** (+0,91 R, 10 trades) ou
+  **rejet M5** (+0,58 R) ; sans FVG, retest du point cassé + **rejet M5** (+0,25 R).
+- **BTC / Ether** : **retest du point cassé + rejet M5** (+0,39 R, 54 % gagnants, 61
+  trades) ; l'order block + FVG a perdu sur le BTC (-0,14 R).
+- Rejet M5 = mèche dans la zone (40 % de la bougie ou plus) et clôture du bon côté ;
+  CHoCH M5 = clôture M5 au-delà du creux (ou sommet) des 3 bougies précédant l'entrée
+  dans la zone, stop au-delà de l'extrême atteint. Confirmation dans l'heure qui suit
+  l'entrée dans la zone, sinon zone expirée ; clôture au-delà de la zone = invalidée.
+- `structure.py` donne l'état en direct : attente du retour, prix dans la zone
+  (niveau du CHoCH), CONFIRMÉE (entrée à la clôture), déjà joué (avec le résultat).
+
+### Règles de base
 
 1. **Order block + FVG dans le sens du biais.** Après une cassure de structure en M15
    (clôture au-delà du dernier creux ou sommet), l'order block est la dernière bougie
