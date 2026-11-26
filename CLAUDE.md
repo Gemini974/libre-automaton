@@ -43,12 +43,12 @@ stop et objectif avant l'entrée, taille en ticks, vérification `plan.py` (PASS
 
 ## Habitudes de travail
 
-- Méthode (détail dans SKILL.md, « LA MÉTHODE ») : setup principal = borne Dual Thrust du jour
-  (ouverture CME ± 0,5 x plage 5 jours), première borne touchée, retour sur la borne puis
-  confirmation M5 (rejet, CHoCH, avalement ou fin de repli), les deux sens ; stop au-delà de la
-  borne (or 100 ticks min., BTC 130), objectif 2R, une entrée par jour. Biais EMA 20 / 50 et
-  fondamental affichés pour information. Méthode précédente (zones M15 order block + FVG ou
-  retest, sens du biais) en setup secondaire. Outils : `structure.py`, `dualthrust.py`, `scan.py`.
+- Méthode (détail dans SKILL.md, « LA MÉTHODE ») : simple. Fondamental + biais EMA 20 / 50 Daily
+  d'accord, sinon pas de trade ; structure H4 / H1 (HMA 21, sommets et creux, BOS / CHoCH) alignée
+  avec le biais ; niveau (order block + FVG M15, retest du dernier point cassé, plus haut / bas de la
+  veille et des sessions) ; price action sur le niveau seulement (confirmation M5 : rejet, CHoCH,
+  avalement, fin de repli) ; stop au-delà du niveau (or 100 ticks min., BTC 130), objectif 2R.
+  Dual Thrust retiré. Outils : `structure.py`, `scan.py`.
 - Données : les futures sur Yahoo ont environ 10 min de retard (BTC-USD spot est en direct).
   Données en direct de l'or : API TopstepX (ProjectX), avec la clé de l'utilisateur.
 - Toujours donner : biais (Daily, H4), niveaux, setups avec entrée, stop, objectif,

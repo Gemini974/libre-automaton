@@ -25,50 +25,27 @@ plupart des gens, et un plan propre n'y change rien.
 
 `${CLAUDE_SKILL_DIR}` est le dossier de ce SKILL.md.
 
-## LA MÉTHODE, dans l'ordre (tout le reste de ce fichier la détaille)
+## LA MÉTHODE, dans l'ordre (simple : fondamental, structure, price action)
 
-Setup principal (choisi par l'utilisateur, les deux sens) : **borne Dual Thrust + confirmation M5**.
-C'est la seule combinaison des dépôts testés (méthode de l'utilisateur, quant-trading, stolgo,
-day-trader-skill, QuantDinger, QuantMuse, COT) restée positive sur l'or 2006-2019, l'or 2020-2026
-et le BTC 2020-2026 (données 5 min OANDA / Binance trouvées via awesome-quant).
+Choix de l'utilisateur : la simplicité. Dual Thrust a été retiré (outil et texte).
 
 | Étape | Règle | Outil |
 |---|---|---|
-| 1. Actif | Contrats Topstep classés ; pas de positions corrélées. Setup testé sur l'or et le BTC seulement | `scan.py` |
-| 2. Calendrier | Pas d'entrée 15 min avant ou après une annonce majeure (PCE, CPI, Fed...) | `av.py`, `market.py macro`, recherche web |
-| 3. Bornes du jour | Journée CME (3h La Réunion). Plage 5 j = max(plus haut 5 j - plus bas des clôtures, plus haute clôture - plus bas 5 j). Bornes = ouverture du jour +/- 0,5 x plage | `dualthrust.py`, `structure.py` setup n° 1 |
-| 4. Sens | La **première borne touchée** décide : haute = achat, basse = vente. Les deux bornes dans la même bougie : pas de trade. Une seule entrée par jour | `dualthrust.live_dt` |
-| 5. Entrée M5 | Attendre le **retour du prix sur la borne cassée**, puis la première confirmation M5 dans l'heure : **rejet**, **CHoCH**, **avalement**, **fin de repli** (repris de stolgo) **ou une figure candlestick dans le sens** (bibliothèque cm45t3r/candlestick, `vendor/`, via Node ; choix de l'utilisateur : les deux). Entrée à la clôture de cette bougie | `dualthrust.live_dt` (état en direct) |
-| 6. Stop / objectif | Au-delà de la borne, minimum **or 100 ticks, BTC 130 ticks** (CHoCH : au-delà de l'extrême) ; objectif **2R** ; à plat à 1h00 | `structure.py` |
-| 7. Biais Daily | EMA 20 / 50 + fondamental affichés **pour information** : sur ce setup, ils n'améliorent rien (contre le biais aussi bon) ; l'utilisateur prend les deux sens | `bias.py` |
-| 8. Contrôle | `plan.py` (PASS/BLOCK, DLL 1 000 $, plafond 1 400 $, clôture 1h10) puis chances du plan | `plan.py`, `timemachine.py` |
-| 9. Exécution | Quantité selon le risque, OCO réglé, CANCEL ORDERS actif ; plus d'entrée après 23h30, à plat avant 1h10 | TopstepX |
+| 1. Fondamental et biais Daily | EMA 20 / EMA 50 Daily **et** vote fondamental (dollar, taux, VIX ; Nasdaq pour le BTC) d'accord ; désaccord = pas de trade ; jamais contre le biais (testé perdant partout) | `bias.py`, `structure.py` section 0 |
+| 2. Calendrier | Pas d'entrée 15 min avant ou après une annonce majeure (PCE, CPI, Fed...) ; jours fériés US : horaires Topstep | `av.py`, `market.py macro`, recherche web |
+| 3. Structure | H4 et H1 : pente HMA 21, sommets et creux (HH/HL ou LH/LL), BOS / CHoCH. Tendance alignée avec le biais = on cherche une entrée ; mixte = attendre ; contraire = rien | `structure.py` section 1 |
+| 4. Niveaux | Zone M15 : **order block + FVG**, sinon **retest du dernier point cassé** ; plus haut / bas de la veille, des sessions, sommets et creux non pris (liquidité) | `ob.py`, `structure.py` sections 4 et 5 |
+| 5. Price action sur le niveau seulement | Le prix revient sur le niveau, puis confirmation M5 dans l'heure : **rejet**, **CHoCH**, **avalement** ou **fin de repli** ; une bougie n'est lue que sur un niveau | `ob.live_setups`, `candles.py` |
+| 6. Stop / objectif | Au-delà du niveau, minimum **or 100 ticks, BTC 130 ticks** ; objectif **2R**, ou la liquidité si elle existe | `structure.py` |
+| 7. Contrôle | `plan.py` (PASS/BLOCK, DLL 1 000 $, plafond 1 400 $, clôture 1h10) puis chances du plan | `plan.py`, `timemachine.py` |
+| 8. Exécution | OCO réglé pour l'actif, CANCEL ORDERS actif ; plus d'entrée après 23h30, à plat avant 1h10 | TopstepX |
 
-Backtest du setup principal (une entrée par jour, frais inclus, 2R, à plat 16h NY) :
-| Échantillon | Trades par an | R par trade | t | Années positives |
-|---|---|---|---|---|
-| Or 2006-2019 | 67 | +0,05 | 2,0 | 9 / 14 |
-| Or 2020-2026 | 57 | +0,15 | 2,9 | 5 / 7 |
-| BTC 2020-2026 | 58 | +0,07 | 1,5 | 7 / 7 |
-Gain modeste ; données spot (pas les futures) ; aucune combinaison ne passe la correction
-anti-hasard la plus stricte : celle-ci n'a pour elle que sa constance sur trois échantillons.
-Le module en direct reproduit le backtest à l'identique (289 journées d'or vérifiées).
-Avec les figures candlestick en plus (version causale, identique au direct sur 199 journées) : or 2006-2019
-+0,04 R, or 2020-2026 +0,14 R, BTC +0,08 R : équivalent aux 4 confirmations seules, environ 10 % de trades en plus.
-Dual Thrust sur d'autres unités de temps (bornes sur 5 bougies, même entrée M5) : M15 et M30 perdants sur l'or
-2006-2019 (-0,05 R, t -4), H1 et H4 autour de 0, hebdomadaire négatif sur 2020-2026 : seul le Daily tient.
-
-Setups secondaires (méthode précédente, toujours dans le sens du biais Daily) : zone M15
-order block + FVG ou retest du point cassé avec entrée M5 (`ob.py`), range d'ouverture M15,
-cassure + retest H1, range borne à borne. Testés sur la durée, ils ne gagnent pas :
-| Setup | Or 2006-2019 | Or 2020-2026 | BTC 2020-2026 |
-|---|---|---|---|
-| OB + FVG M15, confirmations M5, avec le biais | -0,04 R | +0,04 R | -0,01 R |
-| Retest du point cassé M15, confirmations M5 | -0,02 R | 0,00 R | 0,00 R |
-| Range d'ouverture M15 (clôture M15) | -0,04 R (2006-2026) | | +0,02 R |
-Les +0,6 à +0,9 R mesurés sur 60 jours (fin 2026) venaient d'une période de forte tendance.
-Contre le biais, ces setups secondaires perdent davantage.
-
+Ce que disent les tests sur la durée (or 2006-2026, BTC 2020-2026, données 5 min) : la méthode
+zones M15 + confirmation M5 dans le sens du biais tourne autour de 0 R par trade (or 2006-2019
+-0,04 R, or 2020-2026 +0,04 R, BTC -0,01 R) ; contre le biais, elle perd davantage. Les +0,6 à
++0,9 R des 60 derniers jours venaient d'une période de forte tendance. La discipline (biais,
+tendance alignée, niveau, confirmation, stop avant l'entrée) est ce qui protège le compte :
+valider sur le journal de trades.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/plan.py" sessions                       # horaires du jour, heure de La Réunion
