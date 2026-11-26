@@ -105,9 +105,41 @@ RULES = {  # règles testées (zones M15, entrée M5, 60 jours) ; défaut = or
 }
 
 
-def live_setups(m15, m5, side, group="or", buf=0.0, now=None):
+def candle_signals(m5):
+    """Figures candlestick (vendor/candlestick, via candles.cjs et Node) :
+    {horodatage de la dernière bougie de la figure : {+1 haussière, -1 baissière}}. {} si Node est absent."""
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+    node = shutil.which("node")
+    if not node:
+        return {}
+    rows = [dict(open=float(o), high=float(h), low=float(lo), close=float(c))
+            for o, h, lo, c in m5[["open", "high", "low", "close"]].values]
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(rows, f)
+    try:
+        pr = subprocess.run([node, str(Path(__file__).resolve().parent / "candles.cjs"), f.name],
+                            capture_output=True, text=True, timeout=60)
+    finally:
+        Path(f.name).unlink(missing_ok=True)
+    if pr.returncode:
+        print(f"figures candlestick indisponibles (Node : {pr.stderr.strip().splitlines()[-1] if pr.stderr.strip() else pr.returncode})",
+              file=sys.stderr)
+    sig = {}
+    for ln in pr.stdout.splitlines():
+        i, d, _ = ln.split(",")
+        if int(i) < len(m5):
+            sig.setdefault(m5.index[int(i)], set()).add(1 if d == "bullish" else -1)
+    return sig
+
+
+def live_setups(m15, m5, side, group="or", buf=0.0, now=None, sig=None):
     """Zone M15 la plus récente selon les règles, et son état en M5 :
-    attente (prix pas encore revenu), dans la zone (attendre la confirmation), CONFIRMÉE, invalidée, expirée."""
+    attente (prix pas encore revenu), dans la zone (attendre la confirmation), CONFIRMÉE, invalidée, expirée.
+    sig : figures candlestick (candle_signals) ; une figure dans le sens du trade confirme aussi."""
     import pandas as pd
     rule = RULES.get(group, RULES["or"])
     zones = [z for z in find_setups(m15, side, lookback=200, keep_touched=True) if z["kind"] in rule["kinds"]]
@@ -127,7 +159,8 @@ def live_setups(m15, m5, side, group="or", buf=0.0, now=None):
             x = x.iloc[:-1]  # la dernière bougie M5 peut être en cours
         O, H, Lo, C = (x[c].values for c in ("open", "high", "low", "close"))
         hit = np.where((H >= prox) if side < 0 else (Lo <= prox))[0]
-        st = dict(z, stop=stop_zone, status="attente", confirm=rule["confirm"][kind], trig=None, t_trig=None, choch=None)
+        conf_ = rule["confirm"][kind] + (("figure candlestick M5",) if sig is not None else ())
+        st = dict(z, stop=stop_zone, status="attente", confirm=conf_, trig=None, t_trig=None, choch=None)
         if len(hit):
             j = hit[0]
             st["t_touch"] = x.index[j]
@@ -162,6 +195,9 @@ def live_setups(m15, m5, side, group="or", buf=0.0, now=None):
                         (C[q] > O[q]) if side < 0 else (C[q] < O[q]) for q in (m-3, m-2, m-1)) and \
                         ((C[m] < O[m]) if side < 0 else (C[m] > O[m])):
                     st.update(status="CONFIRMÉE", trig="fin de repli M5", t_trig=x.index[m], entry=C[m])
+                    break
+                if sig and side in sig.get(x.index[m], ()):
+                    st.update(status="CONFIRMÉE", trig="figure candlestick M5", t_trig=x.index[m], entry=C[m])
                     break
             else:
                 if len(x) - j > 12:

@@ -405,12 +405,13 @@ def main():
             f"clôture H1 sous {lvl[1]:.2f} ({lvl[0]}), puis retour sur le niveau ; {check}")
     # MÉTHODE DE L'UTILISATEUR : zones M15 (order block + FVG, sinon retest du point cassé), entrée sur M5
     # or : OB + FVG -> CHoCH M5 ou rejet M5 ; retest -> rejet M5.  BTC / Ether : retest -> rejet M5 (OB + FVG perdant au test)
-    from ob import live_setups
+    from ob import candle_signals, live_setups
+    csig = candle_signals(m5)
     grp = "crypto" if sym in ("MBT", "MET") else "or"
     mn = {"MGC": 100, "MBT": 130, "MET": 130}.get(sym, 0) * tick  # stop minimum testé
     for sd_ in ([day_bias] if day_bias else [-1, 1]):
         sdn = "short" if sd_ < 0 else "long"
-        for z in live_setups(m15, m5, sd_, grp, buf=0.1 * a15):
+        for z in live_setups(m15, m5, sd_, grp, buf=0.1 * a15, sig=csig):
             if z["status"].startswith(("invalidée", "expirée")):
                 print(f"  Zone {z['kind']} M15 ({z['entry']:.2f}) : {z['status']}")
                 continue
