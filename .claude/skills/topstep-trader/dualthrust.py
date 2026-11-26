@@ -46,7 +46,10 @@ def candle_signals(m5):
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(rows, f)
     try:
-        out = subprocess.run([node, str(here / "candles.js"), f.name], capture_output=True, text=True, timeout=60).stdout
+        pr = subprocess.run([node, str(here / "candles.cjs"), f.name], capture_output=True, text=True, timeout=60)
+        out = pr.stdout
+        if pr.returncode:
+            print(f"figures candlestick indisponibles (Node : {pr.stderr.strip().splitlines()[-1] if pr.stderr.strip() else pr.returncode})", file=sys.stderr)
     finally:
         Path(f.name).unlink(missing_ok=True)
     sig = {}

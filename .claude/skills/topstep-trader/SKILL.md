@@ -53,6 +53,8 @@ Backtest du setup principal (une entrée par jour, frais inclus, 2R, à plat 16h
 Gain modeste ; données spot (pas les futures) ; aucune combinaison ne passe la correction
 anti-hasard la plus stricte : celle-ci n'a pour elle que sa constance sur trois échantillons.
 Le module en direct reproduit le backtest à l'identique (289 journées d'or vérifiées).
+Avec les figures candlestick en plus (version causale, identique au direct sur 199 journées) : or 2006-2019
++0,04 R, or 2020-2026 +0,14 R, BTC +0,08 R : équivalent aux 4 confirmations seules, environ 10 % de trades en plus.
 Dual Thrust sur d'autres unités de temps (bornes sur 5 bougies, même entrée M5) : M15 et M30 perdants sur l'or
 2006-2019 (-0,05 R, t -4), H1 et H4 autour de 0, hebdomadaire négatif sur 2020-2026 : seul le Daily tient.
 

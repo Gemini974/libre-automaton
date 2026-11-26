@@ -1,1 +1,1 @@
-Copie de https://github.com/cm45t3r/candlestick (commit 7b7c457), licence MIT. Utilisée par dualthrust.py via candles.js.
+Copie de https://github.com/cm45t3r/candlestick (commit 7b7c457), licence MIT. Utilisée par dualthrust.py via candles.cjs.
