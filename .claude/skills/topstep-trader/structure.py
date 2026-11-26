@@ -407,7 +407,8 @@ def main():
     from dualthrust import MIN_STOP_TICKS as DT_MIN, TESTED as DT_TESTED, live_dt
     _, m5l = bars(sym, "5m", 10)
     dmin = DT_MIN.get(sym, 0) * tick or a15
-    dts = live_dt(m5l, tick, dmin)
+    from dualthrust import candle_signals
+    dts = live_dt(m5l, tick, dmin, candle_signals(m5l))
     if dts:
         print(f"\n  Dual Thrust (journée CME) : borne haute {dts['up']:.2f} ({dt_(dts['up'])}), borne basse {dts['lo']:.2f} ({dt_(dts['lo'])}),"
               f" plage 5 j {tk(dts['rng'])} ticks ; état : {dts['status']}")

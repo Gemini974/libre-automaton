@@ -6,7 +6,8 @@
 2. Bornes = ouverture du jour +/- 0,5 x plage. Seule la PREMIÈRE borne touchée compte (achat si
    borne haute, vente si borne basse). Une bougie qui touche les deux bornes : pas de trade.
 3. Attendre le RETOUR du prix sur la borne cassée, puis la première confirmation M5 dans le
-   sens de la cassure, dans l'heure (12 bougies) : rejet, CHoCH, avalement ou fin de repli.
+   sens de la cassure, dans l'heure (12 bougies) : rejet, CHoCH, avalement, fin de repli, ou une
+   figure candlestick (bibliothèque cm45t3r/candlestick, vendor/) : la première qui arrive.
 4. Entrée à la clôture de la bougie de confirmation, stop au-delà de la borne (or 100 ticks
    minimum, BTC 130 ; CHoCH : au-delà de l'extrême), objectif 2R, à plat à 16h NY (1h La Réunion).
    Les deux sens, sans filtre de biais : au test, le biais Daily n'améliorait pas ce setup.
@@ -28,8 +29,37 @@ TESTED = ("MGC", "MBT")
 END = 16 * 60  # 16h NY
 
 
-def live_dt(m5, tick, min_stop):
-    """m5 : bougies 5 min (index avec fuseau), au moins 6 journées CME. Renvoie l'état du jour."""
+def candle_signals(m5):
+    """Figures candlestick (vendor/candlestick, via Node) : {horodatage de la dernière bougie : {+1 haussière, -1 baissière}}.
+    Renvoie {} si Node est absent : seules nos 4 confirmations restent alors actives."""
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+    node = shutil.which("node")
+    if not node:
+        return {}
+    here = Path(__file__).resolve().parent
+    rows = [dict(open=float(o), high=float(h), low=float(lo), close=float(c))
+            for o, h, lo, c in m5[["open", "high", "low", "close"]].values]
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(rows, f)
+    try:
+        out = subprocess.run([node, str(here / "candles.js"), f.name], capture_output=True, text=True, timeout=60).stdout
+    finally:
+        Path(f.name).unlink(missing_ok=True)
+    sig = {}
+    for ln in out.splitlines():
+        i, d, _ = ln.split(",")
+        if int(i) < len(m5):
+            sig.setdefault(m5.index[int(i)], set()).add(1 if d == "bullish" else -1)
+    return sig
+
+
+def live_dt(m5, tick, min_stop, sig=None):
+    """m5 : bougies 5 min (index avec fuseau), au moins 6 journées CME. Renvoie l'état du jour.
+    sig : figures candlestick (candle_signals) ; confirmation = nos 4 déclencheurs OU une figure dans le sens."""
     x = m5[["open", "high", "low", "close"]].copy()
     ny = x.index.tz_convert("America/New_York")
     x["cd"] = (ny + pd.Timedelta(hours=6)).date
@@ -83,6 +113,8 @@ def live_dt(m5, tick, min_stop):
         elif m >= 3 and all((C[q] < O[q]) if side > 0 else (C[q] > O[q]) for q in (m-3, m-2, m-1)) and \
                 ((C[m] > O[m]) if side > 0 else (C[m] < O[m])):
             trig = "fin de repli M5"
+        elif sig and side in sig.get(g.index[m], ()):
+            trig = "figure candlestick M5"
         if trig:
             e = C[m]
             if abs(e - stp) < min_stop:
@@ -117,7 +149,7 @@ def main():
     _, m5 = bars(sym, "5m", 10)
     mn = MIN_STOP_TICKS.get(sym, 0) * tick or atr(m5.resample("15min").agg(
         {"open": "first", "high": "max", "low": "min", "close": "last"}).dropna())
-    st = live_dt(m5, tick, mn)
+    st = live_dt(m5, tick, mn, candle_signals(m5))
     if st is None:
         print("pas assez de données (6 journées CME)")
         return 1

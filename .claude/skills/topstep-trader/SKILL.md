@@ -38,7 +38,7 @@ et le BTC 2020-2026 (données 5 min OANDA / Binance trouvées via awesome-quant)
 | 2. Calendrier | Pas d'entrée 15 min avant ou après une annonce majeure (PCE, CPI, Fed...) | `av.py`, `market.py macro`, recherche web |
 | 3. Bornes du jour | Journée CME (3h La Réunion). Plage 5 j = max(plus haut 5 j - plus bas des clôtures, plus haute clôture - plus bas 5 j). Bornes = ouverture du jour +/- 0,5 x plage | `dualthrust.py`, `structure.py` setup n° 1 |
 | 4. Sens | La **première borne touchée** décide : haute = achat, basse = vente. Les deux bornes dans la même bougie : pas de trade. Une seule entrée par jour | `dualthrust.live_dt` |
-| 5. Entrée M5 | Attendre le **retour du prix sur la borne cassée**, puis la première confirmation M5 dans l'heure : **rejet**, **CHoCH**, **avalement** ou **fin de repli** (les deux derniers repris de stolgo). Entrée à la clôture de cette bougie | `dualthrust.live_dt` (état en direct) |
+| 5. Entrée M5 | Attendre le **retour du prix sur la borne cassée**, puis la première confirmation M5 dans l'heure : **rejet**, **CHoCH**, **avalement**, **fin de repli** (repris de stolgo) **ou une figure candlestick dans le sens** (bibliothèque cm45t3r/candlestick, `vendor/`, via Node ; choix de l'utilisateur : les deux). Entrée à la clôture de cette bougie | `dualthrust.live_dt` (état en direct) |
 | 6. Stop / objectif | Au-delà de la borne, minimum **or 100 ticks, BTC 130 ticks** (CHoCH : au-delà de l'extrême) ; objectif **2R** ; à plat à 1h00 | `structure.py` |
 | 7. Biais Daily | EMA 20 / 50 + fondamental affichés **pour information** : sur ce setup, ils n'améliorent rien (contre le biais aussi bon) ; l'utilisateur prend les deux sens | `bias.py` |
 | 8. Contrôle | `plan.py` (PASS/BLOCK, DLL 1 000 $, plafond 1 400 $, clôture 1h10) puis chances du plan | `plan.py`, `timemachine.py` |
@@ -53,6 +53,8 @@ Backtest du setup principal (une entrée par jour, frais inclus, 2R, à plat 16h
 Gain modeste ; données spot (pas les futures) ; aucune combinaison ne passe la correction
 anti-hasard la plus stricte : celle-ci n'a pour elle que sa constance sur trois échantillons.
 Le module en direct reproduit le backtest à l'identique (289 journées d'or vérifiées).
+Dual Thrust sur d'autres unités de temps (bornes sur 5 bougies, même entrée M5) : M15 et M30 perdants sur l'or
+2006-2019 (-0,05 R, t -4), H1 et H4 autour de 0, hebdomadaire négatif sur 2020-2026 : seul le Daily tient.
 
 Setups secondaires (méthode précédente, toujours dans le sens du biais Daily) : zone M15
 order block + FVG ou retest du point cassé avec entrée M5 (`ob.py`), range d'ouverture M15,
