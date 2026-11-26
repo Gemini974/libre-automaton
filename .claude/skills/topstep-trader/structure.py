@@ -440,7 +440,7 @@ def main():
                 cand.append((-3, "Borne Dual Thrust → entrée M5", "long" if sd_ > 0 else "short", round(e_ / tick) * tick,
                              round(s_ / tick) * tick, round((e_ + sd_ * 2 * dmin) / tick) * tick, "2R", 2.0,
                              etat + "puis retour sur la borne et première confirmation M5 dans le sens de la cassure, dans l'heure"
-                             " (rejet, CHoCH, avalement ou fin de repli) ; entrée à la clôture de cette bougie (prix indicatif ici) ;"
+                             " (rejet, CHoCH, avalement, fin de repli ou figure candlestick) ; entrée à la clôture de cette bougie (prix indicatif ici) ;"
                              f" stop au-delà de la borne (minimum {dmin / tick:.0f} ticks ; CHoCH : au-delà de l'extrême), objectif 2R",
                              dlines, "EN ATTENTE (setup principal)"))
     # MÉTHODE DE L'UTILISATEUR : zones M15 (order block + FVG, sinon retest du point cassé), entrée sur M5

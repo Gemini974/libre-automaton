@@ -144,7 +144,7 @@ def live_setups(m15, m5, side, group="or", buf=0.0, now=None):
                 touched = (H[m] >= prox) if side < 0 else (Lo[m] <= prox)
                 rej = (C[m] < prox and (H[m] - max(O[m], C[m])) / rng >= .4) if side < 0 else \
                       (C[m] > prox and (min(O[m], C[m]) - Lo[m]) / rng >= .4)
-                lvl = Lo[max(j - 3, 0):m].min() if side < 0 else H[max(j - 3, 0):m].max()
+                lvl = (Lo[max(j - 3, 0):m].min() if side < 0 else H[max(j - 3, 0):m].max()) if m > j else None
                 if "CHoCH M5" in st["confirm"] and m > j and ((C[m] < lvl) if side < 0 else (C[m] > lvl)):
                     st.update(status="CONFIRMÉE", trig="CHoCH M5", t_trig=x.index[m], entry=C[m],
                               stop=ext + buf if side < 0 else ext - buf)
